@@ -1,3 +1,24 @@
+;; buffer-timer.el: Track your time based on the buffers you edit.
+;;
+;; Copyright (C) 2002-2004  Wes Hardaker <elisp@hardakers.net>
+;;
+;; This program is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation; either version 2, or (at your option)
+;; any later version.
+;;
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+;;
+;; A copy of the GNU General Public License can be obtained from this
+;; program's author (send electronic mail to psmith@BayNetworks.com) or
+;; from the Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA
+;; 02139, USA.
+;;
+;; $Revision: 1.15 $
+
 (require 'gnus-spec)
 ;
 ; user setable variables
@@ -105,6 +126,13 @@ Swiched to after buffer-timer-idle-limit seconds.")
   "normal face.")
 
 (defvar buffer-timer-gutter-format "%l this: %t")
+
+(defvar buffer-timer-recent-transfer-list-max 5
+  "Maximum number of recent tranfsers to keep for buttons in the idle window")
+
+(defvar buffer-timer-recent-buffer-max 5
+  "Maximum number of recent buffers to make a button for in the idle window")
+
 ;
 ; internal variables
 ;
@@ -277,6 +305,8 @@ static char *magick[] = {
 \"1.7.u 1 ` V b 3 c < ; g 7.\"
 };")
 (defvar buffer-timer-locked-gl (make-glyph (vector 'xpm :data buffer-timer-locked-xpm)))
+(defvar buffer-timer-recent-transfer-list '())
+
 ;
 ; functions
 ;
@@ -410,8 +440,18 @@ static char *magick[] = {
 	(buffer-timer-remember from (- 0 timeamount))
 	(buffer-timer-remember to timeamount)
 	(message (format "transfered %s seconds from %s to %s" 
-			 (buffer-timer-time-string timeamount) from to)))
+			 (buffer-timer-time-string timeamount) from to))
+	(buffer-timer-add-to-recent-list to)
+	)
     (message "transfer canceled")))
+
+(defun buffer-timer-add-to-recent-list (item)
+  "adds a string to the recent transfer list"
+  (push item buffer-timer-recent-transfer-list)
+  (if (> (length buffer-timer-recent-transfer-list) 
+	 buffer-timer-recent-transfer-list-max)
+      (pop buffer-timer-recent-transfer-list)))
+
 
 (defun buffer-timer-adjust-older-time (daysago to timeamount)
   "add TIMEAMOUNT seconds to TO for DAYSAGO in time (appends .el file)"
@@ -750,7 +790,10 @@ static char *magick[] = {
   (insert "Ok....  You've gone idle.  Do you want to:\n\n")
   (let ((here (point)) 
 	(frequent buffer-timer-frequent-topic-list)
+	(frequent2 buffer-timer-recent-transfer-list)
 	(lastbuf (buffer-name (other-buffer)))
+	(bufferlist (buffer-list))
+	(count 0)
 	newext)
 
     (if buffer-timer-locked
@@ -771,35 +814,47 @@ static char *magick[] = {
 				      buffer-timer-idle-button-map
 				      "apply idle time to something else")
 
-					; last visited button
-      (setq here (point))
-      (insert (concat "\tApply current idle time to \"" lastbuf "\"\n"))
-      (setq newext (make-extent here (point)))
-      (set-extent-property newext 'towhat lastbuf)
-      (buffer-timer-make-invis-button newext nil nil 
-				      buffer-timer-idle-button-map
-				      (concat "\tApply current idle time to \"" 
-					      lastbuf "\"\n"))
+      ;; last visited buffers
+      (insert "\nRecent buffers:\n\n")
+      (while (and (< count buffer-timer-recent-buffer-max) bufferlist)
+	(setq count (1+ count))
+	(setq lastbuf (buffer-name (pop bufferlist)))
+	(setq here (point))
+	(insert (concat "\tApply current idle time to \"" lastbuf "\"\n"))
+	(setq newext (make-extent here (point)))
+	(set-extent-property newext 'towhat lastbuf)
+	(buffer-timer-make-invis-button newext nil nil 
+					buffer-timer-idle-button-map
+					(concat "\tApply current idle time to \"" 
+						lastbuf "\"\n")))
 
-					; list
+      ;; user specified frequent topics list
+      (insert "\n\nYour frequent list:\n\n")
       (while frequent
-	(let* ((thesymbol (car frequent))
-	       (thestring (concat "\tApply current idle time to \"" 
-				  (symbol-name (car frequent)) "\"\n")))
-	  (setq here (point))
-	  (insert thestring)
-	  (setq newext (make-extent here (point)))
-	  (set-extent-property newext 'towhat thesymbol)
-	  (buffer-timer-make-invis-button newext nil nil 
-					  buffer-timer-idle-button-map
-					  thestring)
-	  (setq frequent (cdr frequent))))
-
-      )
-    (insert "\n\n(buffer-timer-idle-message)\n")
+	(while frequent
+	  (let* ((thesymbol (car frequent))
+		 (thestring (concat "\tApply current idle time to \"" 
+				     (if (symbolp (car frequent))
+					 (symbol-name (car frequent) )
+				       (car frequent))
+				     "\"\n")))
+	    (setq here (point))
+	    (insert thestring)
+	    (setq newext (make-extent here (point)))
+	    (set-extent-property newext 'towhat thesymbol)
+	    (buffer-timer-make-invis-button newext nil nil 
+					    buffer-timer-idle-button-map
+					    thestring)
+	    (setq frequent (cdr frequent))))
+	(when frequent2
+	  (setq frequent frequent2)
+	  (setq frequent2 nil)
+	  (insert "\n\nRecent transfers:\n\n")
+	  )
+	)
+      (insert "\n\n(buffer-timer-idle-message)\n")
     ))
-; (progn (switch-to-buffer buffer-timer-idle-buffer) (buffer-timer-idle-message))
- 
+)
 ;
 (defun buffer-timer-go-idle (&optional subtracttime)
   "switch to the idle buffer"
@@ -933,6 +988,7 @@ static char *magick[] = {
    (setq buffer-timer-locked lockto)
    (buffer-timer-do-gutter-string)
    (buffer-timer-debug-msg (format "locking to %s\n" lockto))
+   (buffer-timer-add-to-recent-list lockto)
    (setq buffer-timer-status buffer-timer-locked-gl))
 
 (defun buffer-timer-unlock ()
