@@ -1,11 +1,15 @@
 ;
 ; user setable variables
 ;
-(defvar buffer-timer-idle-limit 300)
+(defvar buffer-timer-idle-limit 300
+  "the amount of time to wait for user input before switching to the 
+buffer-timer-idle-buffer buffer")
+
 (defvar buffer-timer-output-file    "/home/hardaker/.buffer-timer"
   "the location to store buffer-timer data.  Will get formated using
-  format-time-string, so date specifications (like file-%Y-%m-%d) will
-  work.")
+format-time-string, so date specifications (like file-%Y-%m-%d) will
+work.")
+
 (defvar buffer-timer-clear-data-on-filename-change t
   "If t, clears data from the buffer-timer on a filename change.
 If a date format string is included in the buffer-timer-output-file variable
@@ -13,16 +17,30 @@ then the variable name will not be constant.  When it changes, this
 variable indicates if the timers data should be cleared for the new time 
 period.")
 
-(defvar buffer-timer-append-date    t)
-(defvar buffer-timer-idle-buffer "*idle*")
-(defvar buffer-timer-load-previous  t)
-(defvar buffer-timer-summarize-sort-by 'time)
-(defvar buffer-timer-save-when-idle t)
-(defvar buffer-timer-small-idle-time 5)
+(defvar buffer-timer-idle-buffer "*idle*"
+  "The buffer to switch to when no events have been detected.
+Swiched to after buffer-timer-idle-limit seconds.")
+
+(defvar buffer-timer-load-previous  t
+  "If t, load the previous existing data file if present")
+
+(defvar buffer-timer-summarize-sort-by 'time
+  "Sort reports either by 'time or by 'name'")
+
+(defvar buffer-timer-save-when-idle t
+  "Whether we should save buffer-timer data every so often automatically.")
+
+(defvar buffer-timer-small-idle-time 5
+  "minimum idle time to wait before saving data")
+
 (defvar buffer-timer-save-every-x-idletimes 15)
-(defvar buffer-timer-do-warnings    nil)
-(defvar buffer-timer-rename-always  nil)
+  "save data only every buffer-timer-save-every-x-idletimes number of idle times.")
+
+(defvar buffer-timer-rename-always  nil
+  "if t, sort/classify the buffer names as they are processed.")
+
 (defvar buffer-timer-regexp-merge-list
+  "A list of (regexp . summary) pairs to make condensed reports from."
   '(("^\\*Group\\*"   	      . "news")  ; or maybe mail!
     ("^\\*Summary\\*" 	      . "news")
     ("drafts/[0-9]+$" 	      . "news-post")
@@ -35,6 +53,7 @@ period.")
 ;
 ; internal variables
 ;
+(defvar buffer-timer-do-warnings    nil)
 (defvar buffer-timer-debug          nil)
 (defvar buffer-timer-debug-buffer   "*buffer-timer-log*")
 (defvar buffer-timer-last-file-name nil)
