@@ -72,6 +72,9 @@ t)
 (defvar buffer-timer-mouse-face 'highlight
   "*Face used for mouse highlighting in the summary buffer.")
 
+(defvar buffer-timer-display-status-in-modeline t
+  "Should the buffer-timer status be displayed in the modeline.")
+
 ;
 ; internal variables
 ;
@@ -87,7 +90,145 @@ t)
 (defvar buffer-timer-start-time     	  (current-time))
 (defvar buffer-timer-switch-time    	  nil)
 (defvar buffer-timer-switch-idle-time     nil)
-
+(defvar buffer-timer-status               "")
+(defvar buffer-timer-locked-xpm "/* XPM */
+static char *magick[] = {
+/* columns rows colors chars-per-pixel */
+\"13 13 118 2\",
+\"   c #19191a\",
+\".  c #1b1b1a\",
+\"X  c #1e1e1e\",
+\"o  c #1e1e22\",
+\"O  c #1e1e25\",
+\"+  c #1e1e28\",
+\"@  c #232320\",
+\"#  c Gray17\",
+\"$  c Gray18\",
+\"%  c #222232\",
+\"&  c #333338\",
+\"*  c #3c3c3a\",
+\"=  c #3c3c3c\",
+\"-  c #3f3f3f\",
+\";  c #3e402b\",
+\":  c #44442d\",
+\">  c #444434\",
+\",  c #434338\",
+\"<  c #655904\",
+\"1  c #615c15\",
+\"2  c #686800\",
+\"3  c #6d6f0e\",
+\"4  c #606038\",
+\"5  c #7a793d\",
+\"6  c #404045\",
+\"7  c #464648\",
+\"8  c #4b4b4b\",
+\"9  c #4e4e4e\",
+\"0  c #5f5f41\",
+\"q  c #58594c\",
+\"w  c #5c5c49\",
+\"e  c #505051\",
+\"r  c #515151\",
+\"t  c #555555\",
+\"y  c #5b5b5b\",
+\"u  c #65675e\",
+\"i  c #727243\",
+\"p  c #606060\",
+\"a  c #636366\",
+\"s  c #656564\",
+\"d  c #656565\",
+\"f  c #666664\",
+\"g  c #66666b\",
+\"h  c #707075\",
+\"j  c #747474\",
+\"k  c Gray46\",
+\"l  c #767676\",
+\"z  c #7c7c7c\",
+\"x  c #7b7c84\",
+\"c  c #827806\",
+\"v  c #828200\",
+\"b  c #858700\",
+\"n  c #8d8d00\",
+\"m  c #96911f\",
+\"M  c #808034\",
+\"N  c #92923a\",
+\"B  c #999c3d\",
+\"V  c #a09822\",
+\"C  c #a5a408\",
+\"Z  c #a9a904\",
+\"A  c #84847f\",
+\"S  c #b7b741\",
+\"D  c #adad63\",
+\"F  c #aaac6f\",
+\"G  c #c3c500\",
+\"H  c #c2c43e\",
+\"J  c #d7cc39\",
+\"K  c #d5ca6a\",
+\"L  c #838383\",
+\"P  c #898989\",
+\"I  c #8b8b8b\",
+\"U  c #8d8d8d\",
+\"Y  c #96968e\",
+\"T  c #939393\",
+\"R  c Gray62\",
+\"E  c #aaad99\",
+\"W  c #a1a1a6\",
+\"Q  c #a5a5a6\",
+\"!  c #aaaaa7\",
+\"~  c #a7a7b0\",
+\"^  c #a8a8b6\",
+\"/  c #b1b1bb\",
+\"(  c #b7b7ba\",
+\")  c #bebebe\",
+\"_  c #bebec1\",
+\"`  c #c5a989\",
+\"'  c #c0bfa0\",
+\"]  c #cccdba\",
+\"[  c #d3d4b0\",
+\"{  c Gray76\",
+\"}  c #c8c7cb\",
+\"|  c #cacaca\",
+\" . c #cbcbcb\",
+\".. c #c1c1d4\",
+\"X. c #c9c9dd\",
+\"o. c Gray82\",
+\"O. c #d5d5d5\",
+\"+. c #d6d6d5\",
+\"@. c #d6d6d9\",
+\"#. c #d6d6df\",
+\"$. c #d8d8d7\",
+\"%. c #d8d8d8\",
+\"&. c #dadbe9\",
+\"*. c #e1e1de\",
+\"=. c #e9e5d0\",
+\"-. c #ffeece\",
+\";. c #e9e9ea\",
+\":. c #f3f4f3\",
+\">. c #f5f7f7\",
+\",. c #f9f9f9\",
+\"<. c #fffbfc\",
+\"1. c Gray99\",
+\"2. c #fcfcfd\",
+\"3. c #fdfdfc\",
+\"4. c #fdfdfd\",
+\"5. c #fffdff\",
+\"6. c #fefeff\",
+\"7. c Gray100\",
+/* pixels */
+\"7.7.7.,.7.L = = P 7.,.7.7.\",
+\"7.7.7.7.| R T P j { 7.7.7.\",
+\"7.7.7.O.z U 9 r j s %.7.7.\",
+\"7.7.7.| j t o.*.s 8 { 7.7.\",
+\"7.7.7.O.s $ $.;.h * ) 7.7.\",
+\"7.7.7.x &   7 i : % y 7.7.\",
+\"7.7.A 2 5 ~ Y ! D n > 6 7.\",
+\"1.7.q m -.J G C Z v 0 O 7.\",
+\"1.7., F <.K H S M N w o 7.\",
+\"7.7.r #.:.&.X.../ ^ a   7.\",
+\"1.7.# ( >.@.} _ W Q p X 7.\",
+\"1.7.@ ] 7.=.[ ' E B 4 + 7.\",
+\"1.7.u 1 ` V b 3 c < ; g 7.\"
+};")
+(defvar buffer-timer-locked-gl (make-glyph (vector 'xpm :data buffer-timer-locked-xpm)))
 ;
 ; functions
 ;
@@ -222,13 +363,15 @@ t)
 					 (caar buffer-timer-data) "]: ")
 				 buffer-timer-data
 				 nil nil nil nil (caar buffer-timer-data))
-		(read-number (format "Number of Seconds [%d]: " 
-				     (if buffer-timer-switch-idle-time
-					 (- (buffer-timer-current-time) 
-					    buffer-timer-switch-idle-time) 0))
-			     t (if buffer-timer-switch-idle-time
-				   (- (buffer-timer-current-time) 
-				      buffer-timer-switch-idle-time) 0))))
+		(buffer-timer-convert-time-string
+		 (let ((tstring
+			(buffer-timer-time-string
+			 (if buffer-timer-switch-idle-time
+			     (+ 300 (- (buffer-timer-current-time) 
+				       buffer-timer-switch-idle-time))
+			   0))))
+		   (read-string (format "Transfer time [%s]: " tstring)
+				nil nil tstring)))))
   (buffer-timer-remember to timeamount)
   (message (format "added %s to %s" (buffer-timer-time-string timeamount) to)))
 
@@ -570,7 +713,8 @@ t)
 		     buffer-timer-data
 		     nil nil nil nil (buffer-timer-get-current-buffer-string))))
    (setq buffer-timer-lock-started (buffer-timer-current-time))
-   (setq buffer-timer-locked lockto))
+   (setq buffer-timer-locked lockto)
+   (setq buffer-timer-status buffer-timer-locked-gl))
 
 (defun buffer-timer-unlock ()
   (interactive)
@@ -582,7 +726,8 @@ t)
 			 buffer-timer-locked
 			 (buffer-timer-time-string time-locked)))
 	(setq buffer-timer-locked nil))
-    (error "buffer-timer: can't unlock since we weren't locked")))
+    (error "buffer-timer: can't unlock since we weren't locked"))
+  (setq buffer-timer-status ""))
 
 
 (defun buffer-timer-view-log ()
@@ -744,7 +889,8 @@ t)
 	      (buffer-timer-munge buffer-timer-data t))
 	  (insert "  No data\n")))
       (setq daychgone (1+ daychgone))))
-  (kill-local-variable 'buffer-timer-data))
+  (kill-local-variable 'buffer-timer-data)
+  (buffer-timer-munge-mode))
 
 ;(buffer-timer-munge-date-range -15 -1)
 
@@ -763,7 +909,14 @@ t)
       (setq list (cdr list)))
     (buffer-timer-display-munge-results master "" 
 					buffer-timer-munge-visible-depth)
-    ))
+    )
+  (buffer-timer-munge-mode))
+
+(defun buffer-timer-munge-mode ()
+  "Major mode for the munge-buffer."
+  (interactive)
+  (setq mode-name "Munge")
+  (setq major-mode 'buffer-timer-munge-mode))
 
 ;
 ; note when we go idle for too long
@@ -808,3 +961,20 @@ t)
 (let ((elfile (concat (buffer-timer-create-file-name) ".el")))
   (if (and buffer-timer-load-previous (file-exists-p elfile))
       (load-file elfile)))
+
+;
+;
+;
+;(setq ext-test (make-extent nil nil))
+;(set-extent-begin-glyph ext-test gnus-xmas-modeline-glyph)
+;(setq buffer-timer-status " ")
+;
+; setup default mode line
+;
+(if buffer-timer-display-status-in-modeline
+    (progn
+      (setq buffer-timer-status "")
+      (setq default-modeline-format
+	    (append '("") '(buffer-timer-status) (cdr default-modeline-format)))))
+
+
