@@ -54,6 +54,7 @@ Swiched to after buffer-timer-idle-limit seconds.")
 ; internal variables
 ;
 (defvar buffer-timer-do-warnings    nil)
+(defvar buffer-timer-locked         nil)
 (defvar buffer-timer-debug          nil)
 (defvar buffer-timer-debug-buffer   "*buffer-timer-log*")
 (defvar buffer-timer-last-file-name nil)
@@ -143,16 +144,18 @@ Swiched to after buffer-timer-idle-limit seconds.")
 (defun buffer-timer-transfer-time (from to timeamount)
   "transfer TIMEAMOUNT seconds from FROM to TO"
   (interactive (list
-		(completing-read "From Subject: " 
+		(completing-read 
+		 (concat "From Subject [" buffer-timer-idle-buffer "]: ")
+		 buffer-timer-data nil t nil nil buffer-timer-idle-buffer)
+		(completing-read (concat "To Subject: [" 
+					 (caar buffer-timer-data) "]: ")
 				 buffer-timer-data
-				 nil t nil nil buffer-timer-idle-buffer)
-		(completing-read "To Subject: " 
-				 buffer-timer-data
-				 nil nil nil nil buffer-timer-idle-buffer)
+				 nil nil nil nil (caar buffer-timer-data))
 		(read-number "Number of Seconds: " t)))
   (buffer-timer-remember from (- 0 timeamount))
   (buffer-timer-remember to timeamount)
-  (message (format "transfered: %s to %s amount: %d" from to timeamount)))
+  (message (format "transfered %s seconds from %s to %s" 
+		   (buffer-timer-time-string timeamount) from to)))
 
 ;
 ; write out our data to a save file
@@ -369,79 +372,49 @@ Swiched to after buffer-timer-idle-limit seconds.")
 (defun buffer-timer-go-idle (&optional subtracttime)
   (interactive)
   ; subtract off a certain number of minutes from the current timer
-  (if (and subtracttime buffer-timer-switch-time)
-      ; we need to manually calculate the times for buffers dealing
-      ; with the fact that the last X number of seconds should be
-      ; marked as idle.
-      (progn 
-	(cond
-	 ;; we've switched early.  Only record the idle time.
-	 ((> (+ buffer-timer-switch-time subtracttime)
-	     (buffer-timer-current-time))
-	  (bt-warn (format "buffer-timer: idle timer gave too few seconds: %d"
-			   (- (buffer-timer-current-time)
-			      buffer-timer-switch-time)))
-	  (buffer-timer-remember buffer-timer-idle-buffer
-				 (- (buffer-timer-current-time)
-				    buffer-timer-switch-time)))
-	 ;; we've switched and need to remember an amount of time spent
-	 ;; in the current buffer.
-	 ((< (+ buffer-timer-switch-time subtracttime)
-	     (buffer-timer-current-time))
-	  (buffer-timer-remember (buffer-timer-get-current-buffer-string)
-				 (- (buffer-timer-current-time)
-				    buffer-timer-switch-time subtracttime))
-	  (buffer-timer-remember buffer-timer-idle-buffer subtracttime))
-	 ;; exactly equal.  Only the idle timer is incremented.
-	 (t
-	  (buffer-timer-remember buffer-timer-idle-buffer subtracttime)))
-	;; zero the switch time so we don't record anything about the
-	;; past X amount of time.
-	(setq buffer-timer-switch-time (buffer-timer-current-time))))
-  ; change to the idle buffer, don't increment anything.
+  (if buffer-timer-locked
+      (message (concat "not going idle: currently locked to \"" 
+		       buffer-timer-locked "\""))
+    (if (and subtracttime buffer-timer-switch-time)
+	;; we need to manually calculate the times for buffers dealing
+	;; with the fact that the last X number of seconds should be
+	;; marked as idle.
+	(progn 
+	  (cond
+	   ;; we've switched early.  Only record the idle time.
+	   ((> (+ buffer-timer-switch-time subtracttime)
+	       (buffer-timer-current-time))
+	    (bt-warn (format "buffer-timer: idle timer gave too few seconds: %d"
+			     (- (buffer-timer-current-time)
+				buffer-timer-switch-time)))
+	    (buffer-timer-remember buffer-timer-idle-buffer
+				   (- (buffer-timer-current-time)
+				      buffer-timer-switch-time)))
+	   ;; we've switched and need to remember an amount of time spent
+	   ;; in the current buffer.
+	   ((< (+ buffer-timer-switch-time subtracttime)
+	       (buffer-timer-current-time))
+	    (buffer-timer-remember (buffer-timer-get-current-buffer-string)
+				   (- (buffer-timer-current-time)
+				      buffer-timer-switch-time subtracttime))
+	    (buffer-timer-remember buffer-timer-idle-buffer subtracttime))
+	   ;; exactly equal.  Only the idle timer is incremented.
+	   (t
+	    (buffer-timer-remember buffer-timer-idle-buffer subtracttime)))
+	  ;; zero the switch time so we don't record anything about the
+	  ;; past X amount of time.
+	  (setq buffer-timer-switch-time (buffer-timer-current-time)))))
+  ;; change to the idle buffer, don't increment anything.
   (switch-to-buffer buffer-timer-idle-buffer))
   
 ;
-; check weather something switched buffers underneath us
-;
-(defun buffer-timer-check-legal (currentname)
-  "checks if the name of the current buffer is the last one we remember"
-  (if (and buffer-timer-last-file-name
-	   (not (equal buffer-timer-last-file-name buffer-timer-idle-buffer))
-	   (not (equal buffer-timer-last-file-name currentname)))
-      (let ((result 1)
-	    (list buffer-timer-regexp-ignore-switch-errors))
-	(while (and list (not (eq result 1)))
-	  (if (string-match (car list) currentname)
-	      (bt-warn (format "skipped %s to %s" currentname 
-			    buffer-timer-last-file-name)
-		    (setq result nil)))
-	  (setq list (cdr list)))
-	(if (eq result 1)
-	    (bt-warn 
-	     (format
-	      "buffer-timer error: somehow we switched to buffer %s from %s" 
-	      currentname buffer-timer-last-file-name)))
-	result)
-    0))
-
-;
 ; easy to use functions
 ;
-(defun buffer-timer-do-current ()
-  (let ((current (buffer-timer-get-current-buffer-string)))
-    (if buffer-timer-last-file-name 
-	(buffer-timer-check-legal current))
-    (buffer-timer-remember buffer-timer-last-file-name)
-    (buffer-timer-remember current)))
-
-(defun buffer-timer-do-switch (&rest args)
-  (buffer-timer-remember buffer-timer-last-file-name)
-  (setq buffer-timer-last-file-name (buffer-timer-get-current-buffer-string)))
-
 (defun buffer-timer-idle-switch (&rest args)
   (let ((newname (buffer-timer-get-current-buffer-string)))
-    (if (not (eq newname buffer-timer-last-file-name))
+    (if (and
+	 (not buffer-timer-locked)
+	 (not (eq newname buffer-timer-last-file-name)))
 	(progn
 	  (buffer-timer-remember buffer-timer-last-file-name)
 	  (setq buffer-timer-last-file-name newname)))))
@@ -451,6 +424,31 @@ Swiched to after buffer-timer-idle-limit seconds.")
   (setq buffer-timer-data nil)
   (setq buffer-timer-start-time     (current-time))
 )
+
+(defun buffer-timer-lock (lockto)
+  (interactive
+   (list
+    (completing-read (concat "Lock To [" 
+			     (buffer-timer-get-current-buffer-string) "]: ")
+		     buffer-timer-data
+		     nil nil nil nil (buffer-timer-get-current-buffer-string))))
+   (setq buffer-timer-lock-started (buffer-timer-current-time))
+   (setq buffer-timer-locked lockto))
+
+(defun buffer-timer-unlock ()
+  (interactive)
+  (if buffer-timer-locked
+      (let ((time-locked (- (buffer-timer-current-time) 
+			    buffer-timer-lock-started)))
+	(buffer-timer-remember buffer-timer-locked time-locked)
+	(message (format "locked to %s for %s"
+			 buffer-timer-locked
+			 (buffer-timer-time-string time-locked)))
+	(setq buffer-timer-locked nil))
+    (error "buffer-timer: can't unlock since we weren't locked")))
+
+
+  
 
 ;
 ; note when we go idle for too long
@@ -463,7 +461,6 @@ Swiched to after buffer-timer-idle-limit seconds.")
 ;
 ; clean up/saving upon exit of emacs
 ;
-;(add-hook 'switch-to-buffer-hooks 'buffer-timer-do-switch)
 (add-hook 'pre-idle-hook 'buffer-timer-idle-switch)
 (add-hook 'kill-emacs-hook 'buffer-timer-write-results)
 
@@ -476,23 +473,13 @@ Swiched to after buffer-timer-idle-limit seconds.")
 (global-set-key "\C-ctc" 'buffer-timer-clear)
 (global-set-key "\C-ctr" 'buffer-timer-report)
 (global-set-key "\C-ctt" 'buffer-timer-transfer-time)
+(global-set-key "\C-ctl" 'buffer-timer-lock)
+(global-set-key "\C-ctu" 'buffer-timer-unlock)
 
 ;
-; load previous data set
+; maybe load previous data set
 ;
 
 (let ((elfile (concat (buffer-timer-create-file-name) ".el")))
   (if (and buffer-timer-load-previous (file-exists-p elfile))
       (load-file elfile)))
-
-;
-; test functions
-;
-;  (setq buffer-timer-last-file-name (buffer-timer-get-current-buffer-string))
-;  (buffer-timer-do-current)
-;  (buffer-timer-check-legal (buffer-timer-get-current-buffer-string))
-;  (buffer-timer-check-legal " *Minibuf")
-;  (if (string-match "^ \\*blah" " *blah") (insert "blah"))
-;  (if (string-match "^ \\*blah" " *blah") (insert "blah"))
-; (insert buffer-timer-last-file-name)
-; (car buffer-timer-regexp-ignore-switch-errors)
