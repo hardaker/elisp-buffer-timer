@@ -649,6 +649,7 @@ static char *magick[] = {
   
 ;
 (defun buffer-timer-go-idle (&optional subtracttime)
+  "switch to the idle buffer"
   (interactive)
   ; subtract off a certain number of minutes from the current timer
   (if buffer-timer-locked
@@ -686,7 +687,14 @@ static char *magick[] = {
   ;; change to the idle buffer, don't increment anything.
   (setq buffer-timer-switch-idle-time buffer-timer-switch-time)
   (switch-to-buffer buffer-timer-idle-buffer))
-  
+
+(defun buffer-timer-toggle-idle (&optional subtracttime)
+  "switch to or from the idle buffer"
+  (interactive)
+  (if (equal (buffer-name) buffer-timer-idle-buffer)
+      ; switch back to something else
+      (switch-to-buffer (other-buffer))
+    (buffer-timer-go-idle subtracttime)))
 ;
 ; easy to use functions
 ;
