@@ -287,7 +287,7 @@ static char *magick[] = {
 		  (progn
 		    (set-buffer buffer-timer-debug-buf)
 		    (goto-char (point-max))
-		    (insert msg))
+		    (insert (format "%s %s" (current-time-string) msg)))
 		(message "buffer-timer: couldn't create log")))))))
 
 ;
@@ -321,7 +321,7 @@ static char *magick[] = {
 			  (+ currentnum timespent))
 		(setq thelist (cons (cons rename timespent) thelist)))
 	      (buffer-timer-debug-msg 
-	       (format "%s %4d %s %s\n" (current-time-string) timespent 
+	       (format "%4d %s %s\n" timespent 
 		       (buffer-timer-time-string timespent) rename))))
       (bt-warn "empty buffer name passed in"))
     (setq buffer-timer-switch-time now)
@@ -714,6 +714,7 @@ static char *magick[] = {
 		     nil nil nil nil (buffer-timer-get-current-buffer-string))))
    (setq buffer-timer-lock-started (buffer-timer-current-time))
    (setq buffer-timer-locked lockto)
+   (buffer-timer-debug-msg (format "locking to %s\n" lockto))
    (setq buffer-timer-status buffer-timer-locked-gl))
 
 (defun buffer-timer-unlock ()
@@ -722,9 +723,11 @@ static char *magick[] = {
       (let ((time-locked (- (buffer-timer-current-time) 
 			    buffer-timer-lock-started)))
 	(buffer-timer-remember buffer-timer-locked time-locked)
-	(message (format "locked to %s for %s"
-			 buffer-timer-locked
-			 (buffer-timer-time-string time-locked)))
+	(let ((msg (format "locked to %s for %s"
+			   buffer-timer-locked
+			   (buffer-timer-time-string time-locked))))
+	  (message msg)
+	  (buffer-timer-debug-msg (format "%s\n" msg)))
 	(setq buffer-timer-locked nil))
     (error "buffer-timer: can't unlock since we weren't locked"))
   (setq buffer-timer-status ""))
