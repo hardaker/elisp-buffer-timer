@@ -75,6 +75,11 @@ Swiched to after buffer-timer-idle-limit seconds.")
 (defvar buffer-timer-display-status-in-modeline t
   "Should the buffer-timer status be displayed in the modeline.")
 
+(defvar buffer-timer-do-idle-buttons t
+  "Put transfer buttons into the idle buffer for easy switch away.")
+
+(defvar buffer-timer-frequent-topic-list nil
+  "A list of frequent topics utilized a user of the buffer-timer")
 ;
 ; internal variables
 ;
@@ -332,7 +337,7 @@ static char *magick[] = {
 ;
 ; transfer time from one subject to another
 ;
-(defun buffer-timer-transfer-time (from to timeamount)
+(defun buffer-timer-transfer-time (from to timeamount &optional confirm)
   "transfer TIMEAMOUNT seconds from FROM to TO"
   (interactive (list
 		(completing-read 
@@ -351,10 +356,15 @@ static char *magick[] = {
 			   0))))
 		   (read-string (format "Transfer time [%s]: " tstring)
 				nil nil tstring)))))
-  (buffer-timer-remember from (- 0 timeamount))
-  (buffer-timer-remember to timeamount)
-  (message (format "transfered %s seconds from %s to %s" 
-		   (buffer-timer-time-string timeamount) from to)))
+  (if (or (not confirm)
+	  (y-or-n-p (format "transfer %s seconds from %s to %s? " 
+			       (buffer-timer-time-string timeamount) from to)))
+      (progn
+	(buffer-timer-remember from (- 0 timeamount))
+	(buffer-timer-remember to timeamount)
+	(message (format "transfered %s seconds from %s to %s" 
+			 (buffer-timer-time-string timeamount) from to)))
+    (message "transfer canceled")))
 
 (defun buffer-timer-adjust-time (to timeamount)
   "add TIMEAMOUNT seconds to TO"
@@ -646,7 +656,68 @@ static char *magick[] = {
 	    (progn
 	      (setq buffer-timer-do-early-idle-count 0)
 	      (buffer-timer-write-results))))))
-  
+
+(defun buffer-timer-do-idle-application (event)
+  (interactive "e")
+  (let* ((ext (event-glyph-extent event))
+	 (pt (event-closest-point event))
+	 to)
+    (if (not ext)
+	(when pt
+	  (setq ext (extent-at pt (event-buffer event) nil ext 'at))))
+    (if ext (setq to (extent-property ext 'towhat)))
+    (if (symbolp to) (setq to (symbol-name to)))
+    (if to
+	(buffer-timer-transfer-time buffer-timer-idle-buffer to
+				    (+ 300 (- (buffer-timer-current-time) 
+					      buffer-timer-switch-idle-time)) t)
+      (call-interactively 'buffer-timer-transfer-time))))
+
+(defun buffer-timer-idle-message ()
+  (interactive)
+  (erase-buffer)
+  (insert "Ok....  You've gone idle.  Do you want to:\n\n")
+  (let ((here (point)) 
+	(frequent buffer-timer-frequent-topic-list)
+	(lastbuf (buffer-name (other-buffer)))
+	there newext)
+
+    ; generic button
+    (insert "\tApply current idle time to something generic\n")
+    (setq newext (make-extent here (point)))
+    (buffer-timer-make-invis-button newext nil nil 
+				    buffer-timer-idle-button-map
+				    "apply idle time to something else")
+
+    ; last visited button
+    (setq here (point))
+    (insert (concat "\tApply current idle time to \"" lastbuf "\"\n"))
+    (setq newext (make-extent here (point)))
+    (set-extent-property newext 'towhat lastbuf)
+    (buffer-timer-make-invis-button newext nil nil 
+				    buffer-timer-idle-button-map
+				    (concat "\tApply current idle time to \"" 
+					    lastbuf "\"\n"))
+
+    ; list
+    (while frequent
+      (let* ((thesymbol (car frequent))
+	     (thestring (concat "\tApply current idle time to \"" 
+				(symbol-name (car frequent)) "\"\n")))
+	(setq here (point))
+	(insert thestring)
+	(setq newext (make-extent here (point)))
+	(set-extent-property newext 'towhat thesymbol)
+	(buffer-timer-make-invis-button newext nil nil 
+					buffer-timer-idle-button-map
+					thestring)
+	(setq frequent (cdr frequent))))
+
+)
+  (insert "\n\n(buffer-timer-idle-message)\n")
+)
+; (progn (switch-to-buffer buffer-timer-idle-buffer) (buffer-timer-idle-message))
+ 
 ;
 (defun buffer-timer-go-idle (&optional subtracttime)
   "switch to the idle buffer"
@@ -686,7 +757,9 @@ static char *magick[] = {
 	  (setq buffer-timer-switch-time (buffer-timer-current-time)))))
   ;; change to the idle buffer, don't increment anything.
   (setq buffer-timer-switch-idle-time buffer-timer-switch-time)
-  (switch-to-buffer buffer-timer-idle-buffer))
+  (switch-to-buffer buffer-timer-idle-buffer)
+  (if buffer-timer-do-idle-buttons
+      (buffer-timer-idle-message)))
 
 (defun buffer-timer-toggle-idle (&optional subtracttime)
   "switch to or from the idle buffer"
@@ -757,20 +830,35 @@ static char *magick[] = {
 (define-key buffer-timer-munge-map [(button3)] 'buffer-timer-toggle-munge-state)
 (define-key buffer-timer-munge-map [(return)] 'buffer-timer-toggle-munge-state)
 
-(defun buffer-timer-make-invis-button (ext &optional subregionext startinvis)
+; idle buffer map
+(defvar buffer-timer-idle-button-map 
+  (make-sparse-keymap "buffer-timer-idle-button-keys")
+  "Keymap to apply transforms.")
+
+(define-key buffer-timer-idle-button-map [(button2)] 
+  'buffer-timer-do-idle-application)
+(define-key buffer-timer-idle-button-map [(button3)] 
+  'buffer-timer-do-idle-application)
+(define-key buffer-timer-idle-button-map [(return)] 
+  'buffer-timer-do-idle-application)
+
+(defun buffer-timer-make-invis-button (ext &optional subregionext startinvis keymap help)
   (if startinvis
       (set-extent-property subregionext 'invisible t))
-  (set-extent-property ext 'end-open t)
-  (set-extent-property ext 'start-open t)
-  (set-extent-property ext 'keymap buffer-timer-munge-map)
-  (set-extent-property ext 'mouse-face buffer-timer-mouse-face)
-  (set-extent-property ext 'intangible t)
-  (if (and subregionext (extentp subregionext))
-      (set-extent-property ext 'subregion subregionext))
+  (let ((mykeymap (or keymap buffer-timer-munge-map))
+	(helpstr 
+	 (or help "button2 toggles visibilty of sub-groups below this one.")))
+    (set-extent-property ext 'end-open t)
+    (set-extent-property ext 'start-open t)
+    (set-extent-property ext 'keymap mykeymap)
+    (set-extent-property ext 'mouse-face buffer-timer-mouse-face)
+    (set-extent-property ext 'intangible t)
+    (if (and subregionext (extentp subregionext))
+	(set-extent-property ext 'subregion subregionext))
   ;; Help
-  (set-extent-property
-   ext 'help-echo
-   "button2 toggles visibilty of sub-groups below this one.")
+    (set-extent-property
+     ext 'help-echo
+     helpstr))
 )
 
 (defun buffer-timer-toggle-munge-state (event)
@@ -977,11 +1065,23 @@ static char *magick[] = {
 (run-with-idle-timer buffer-timer-small-idle-time t 'buffer-timer-do-early-idle)
 
 ;
-; clean up/saving upon exit of emacs
-;
-(add-hook 'pre-idle-hook 'buffer-timer-idle-switch)
-(add-hook 'kill-emacs-hook 'buffer-timer-write-results)
+(defun buffer-timer-start ()
+  "turn on the buffer timer"
+  (add-hook 'pre-idle-hook 'buffer-timer-idle-switch)
+  (add-hook 'kill-emacs-hook 'buffer-timer-stop)
+)
 
+
+; clean up for exiting
+(defun buffer-timer-stop ()
+  "exit buffer timer (turn it off)"
+  (if buffer-timer-locked
+      (buffer-timer-unlock))
+  (remove-hook 'pre-idle-hook 'buffer-timer-idle-switch)
+  (buffer-timer-write-results)
+)
+
+(buffer-timer-start)
 ;
 ; keybindings
 ;
