@@ -330,6 +330,7 @@ static char *magick[] = {
 			       (format-time-string buffer-timer-debug-file)))
 		      (setq buffer-timer-debug-buf 
 			    (get-buffer-create buffer-timer-debug-buffer)))
+		    (set-buffer buffer-timer-debug-buf)
 		    (make-local-variable 'save-buffers-skip)
 		    (setq save-buffers-skip t)
 		    (setq buffer-timer-recursive-watch nil)))
@@ -411,6 +412,44 @@ static char *magick[] = {
 	(message (format "transfered %s seconds from %s to %s" 
 			 (buffer-timer-time-string timeamount) from to)))
     (message "transfer canceled")))
+
+(defun buffer-timer-adjust-older-time (daysago to timeamount)
+  "add TIMEAMOUNT seconds to TO for DAYSAGO in time (appends .el file)"
+  (interactive (list
+		(read-number "Add to how many days ago: ")
+		(completing-read (concat "To Subject: [" 
+					 (caar buffer-timer-data) "]: ")
+				 buffer-timer-data
+				 nil nil nil nil (caar buffer-timer-data))
+		(buffer-timer-convert-time-string
+		 (let ((tstring
+			(buffer-timer-time-string
+			 (if buffer-timer-switch-idle-time
+			     (+ 300 (- (buffer-timer-current-time) 
+				       buffer-timer-switch-idle-time))
+			   0))))
+		   (read-string (format "Transfer time [%s]: " tstring)
+				nil nil tstring)))))
+  (setq daysago (- 0 daysago))
+  (save-excursion
+    (let* ((date (buffer-timer-get-days-ago daysago))
+	   (filename 
+	    (format-time-string (concat buffer-timer-output-file ".el")
+				date))
+	   buf)
+	(if (file-exists-p filename)
+	    (progn
+	      (setq buf (find-file-noselect filename))
+	      (set-buffer buf)
+	      (goto-char (point-max))
+	      (insert (format "(buffer-timer-adjust-time \"%s\" %d)\n"
+			      to timeamount))
+	      (save-buffer)
+	      (message (format "added %s to %s, %d days ago in %s"
+			       (buffer-timer-time-string timeamount) to 
+			       daysago filename)))
+	  (error (format "no file for that day: %s" filename))))))
+
 
 (defun buffer-timer-adjust-time (to timeamount)
   "add TIMEAMOUNT seconds to TO"
@@ -1095,6 +1134,20 @@ static char *magick[] = {
 ;  (buffer-timer-munge buffer-timer-data t)
 ;  (kill-local-variable 'buffer-timer-data))
 
+(defun buffer-timer-get-days-ago (num)
+  "return (high low) representing emacs' stupid date method for NUM days ago"
+  (let* ((now (current-time))
+	 (low (+ (second now) (* num 60 60 24)))
+	 (high (first now)))
+    ;; stupid stupid time format.  Who uses 16 bit machines anymore?
+    (while (< low 0)
+      (setq low (+ low 65536))
+      (setq high (- high 1)))
+    (while (> low 65535)
+      (setq low (- low 65536))
+      (setq high (+ high 1)))
+    (list high low)))
+  
 (defun buffer-timer-munge-date-range (daychgone daychgtwo)
   "display info from TODAY-DAYCHGONE to TODAY-DAYCHGTWO"
   (interactive "nNumber of days ago marking start of range to view: \nnNumber of days ago marking end of range to view: ")
@@ -1105,21 +1158,12 @@ static char *magick[] = {
   (setq daychgone (- 0 daychgone))
   (setq daychgtwo (- 0 daychgtwo))
   (while (<= daychgone daychgtwo)
-    (let* ((now (current-time))
-	   (low (+ (second now) (* daychgone 60 60 24)))
-	   (high (first now)))
-      ; stupid stupid time format.  Who uses 16 bit machines anymore?
-      (while (< low 0)
-	(setq low (+ low 65536))
-	(setq high (- high 1)))
-      (while (> low 65535)
-	(setq low (- low 65536))
-	(setq high (+ high 1)))
+    (let* ((date (buffer-timer-get-days-ago daychgone)))
       ; insert a date stamp
-      (insert (format-time-string "\nDate:  %Y-%m-%d  %a\n" (list high low)))
+      (insert (format-time-string "\nDate:  %Y-%m-%d  %a\n" date))
       (let ((filename 
 	     (format-time-string (concat buffer-timer-output-file ".el")
-				 (list high low))))
+				 date)))
 ;	(insert (format "File (%d):  %s\n" daychgone filename))
 	(if (file-exists-p filename)
 	    (progn
@@ -1235,6 +1279,7 @@ static char *magick[] = {
   (if buffer-timer-use-gutter
       (set-gutter-element-visible-p default-gutter-visible-p 'buffer-timer t))
   (set-specifier default-gutter-height 15)
+  (buffer-timer-debug-msg "   buffer-timer-starting\n")
   (buffer-timer-do-menus))
 
 
@@ -1247,6 +1292,7 @@ static char *magick[] = {
   (remove-hook 'pre-idle-hook 'buffer-timer-idle-switch)
   (buffer-timer-write-results)
   (delete-menu-item '("Tools" "Timer"))
+  (buffer-timer-debug-msg "   buffer-timer-stopping\n")
   (message "buffer-timer exiting")
 )
 
@@ -1266,6 +1312,7 @@ static char *magick[] = {
 ; modifying data
 (global-set-key "\C-ctt" 'buffer-timer-transfer-time)
 (global-set-key "\C-cta" 'buffer-timer-adjust-time)
+(global-set-key "\C-ctA" 'buffer-timer-adjust-older-time)
 
 ; locking to a subject
 (global-set-key "\C-cti" 'buffer-timer-go-idle)
