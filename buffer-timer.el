@@ -3,7 +3,7 @@
 ;
 (defvar buffer-timer-idle-limit 300)
 (defvar buffer-timer-output-file    "/home/hardaker/.tbout")
-(defvar buffer-timer-idle-buffer    "*idle*")
+(defvar buffer-timer-idle-buffer "*idle*")
 (defvar buffer-timer-load-previous  t)
 (defvar buffer-timer-summarize-sort-by 'time)
 (defvar buffer-timer-save-when-idle t)
@@ -107,6 +107,23 @@
       thelist)))
 
 ;
+; transfer time from one subject to another
+;
+(defun buffer-timer-transfer-time (from to timeamount)
+  "transfer TIMEAMOUNT seconds from FROM to TO"
+  (interactive (list
+		(completing-read "From Subject: " 
+				 buffer-timer-data
+				 nil t nil nil buffer-timer-idle-buffer)
+		(completing-read "To Subject: " 
+				 buffer-timer-data
+				 nil nil nil nil buffer-timer-idle-buffer)
+		(read-number "Number of Seconds: " t)))
+  (buffer-timer-remember from (- 0 timeamount))
+  (buffer-timer-remember to timeamount)
+  (message (format "transfered: %s to %s amount: %d" from to timeamount)))
+
+;
 ; write out our data to a save file
 ;
 (defun buffer-timer-write-results ()
@@ -172,6 +189,12 @@
 (defun buffer-timer-sort-by-name (a b)
   (string-lessp (car a) (car b)))
 
+(let ((tstring "*idle*"))
+  (if (or (equal tstring buffer-timer-idle-buffer)
+			(equal tstring "idle"))
+      (message "yes")
+    (message "no")))
+
 (defun buffer-timer-summarize (&optional sortby)
   (interactive)
   (save-excursion
@@ -190,15 +213,18 @@
       ; display the list
       (while list
 	(let* ((totaltime (cdar list))
+	       (bufname (caar list))
 	       (tstring   (buffer-timer-time-string totaltime)))
-	  (setq addedtime (+ addedtime totaltime))
-	  (if (or (equal tstring buffer-timer-idle-buffer)
-		  (equal tstring "idle"))
-	      (setq idletime (+ idletime totaltime)))
-	  (insert (format "%s\t%s\n" tstring (caar list)))
+	  (if (> totaltime 0)
+	      (progn
+		(setq addedtime (+ addedtime totaltime))
+		(if (or (equal bufname buffer-timer-idle-buffer)
+			(equal bufname "idle"))
+		    (setq idletime (+ idletime totaltime)))
+		(insert (format "%s\t%s\n" tstring bufname))))
 	  (setq list (cdr list))))
-      (insert "----------------------------------------------------------------------\n")
-      (if idletime
+	  (insert "----------------------------------------------------------------------\n")
+      (if (> idletime 0)
 	  (insert (format "%s\tTotal not idle\n" (buffer-timer-time-string 
 						  (- addedtime
 						     idletime)))))
@@ -242,17 +268,20 @@
       ; display the list
       (while reportlist
 	(let* ((totaltime (cdar reportlist))
+	       (bufname (caar reportlist))
 	       (tstring   (buffer-timer-time-string totaltime)))
-	  (setq addedtime (+ addedtime totaltime))
-	  (if (or (equal tstring buffer-timer-idle-buffer)
-		  (equal tstring "idle"))
-	      (setq idletime (+ idletime totaltime)))
-	  (insert (format "%s\t%s\n" tstring (caar reportlist)))
+	  (if (> totaltime 0)
+	      (progn
+		(setq addedtime (+ addedtime totaltime))
+		(if (or (equal bufname buffer-timer-idle-buffer)
+			(equal bufname "idle"))
+		    (setq idletime (+ idletime totaltime)))
+		(insert (format "%s\t%s\n" tstring bufname))))
 	  (setq reportlist (cdr reportlist))))
 
       ; display a summary count
       (insert "----------------------------------------------------------------------\n")
-      (if idletime
+      (if (> idletime 0)
 	  (insert (format "%s\tTotal not idle\n" (buffer-timer-time-string 
 						  (- addedtime
 						     idletime)))))
@@ -406,6 +435,7 @@
 (global-set-key "\C-cti" 'buffer-timer-go-idle)
 (global-set-key "\C-ctc" 'buffer-timer-clear)
 (global-set-key "\C-ctr" 'buffer-timer-report)
+(global-set-key "\C-ctt" 'buffer-timer-transfer-time)
 
 ;
 ; load previous data set
