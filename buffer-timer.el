@@ -2,7 +2,18 @@
 ; user setable variables
 ;
 (defvar buffer-timer-idle-limit 300)
-(defvar buffer-timer-output-file    "/home/hardaker/.tbout")
+(defvar buffer-timer-output-file    "/home/hardaker/.buffer-timer"
+  "the location to store buffer-timer data.  Will get formated using
+  format-time-string, so date specifications (like file-%Y-%m-%d) will
+  work.")
+(defvar buffer-timer-clear-data-on-filename-change t
+  "If t, clears data from the buffer-timer on a filename change.
+If a date format string is included in the buffer-timer-output-file variable
+then the variable name will not be constant.  When it changes, this
+variable indicates if the timers data should be cleared for the new time 
+period.")
+
+(defvar buffer-timer-append-date    t)
 (defvar buffer-timer-idle-buffer "*idle*")
 (defvar buffer-timer-load-previous  t)
 (defvar buffer-timer-summarize-sort-by 'time)
@@ -27,6 +38,7 @@
 (defvar buffer-timer-debug          nil)
 (defvar buffer-timer-debug-buffer   "*buffer-timer-log*")
 (defvar buffer-timer-last-file-name nil)
+(defvar buffer-timer-last-outputfile-name nil)
 (defvar buffer-timer-data           nil)
 (defvar buffer-timer-start-time     (current-time))
 (defvar buffer-timer-switch-time    nil)
@@ -74,7 +86,7 @@
 (defun buffer-timer-debug-msg (msg)
   (save-excursion
     (set-buffer (get-buffer-create buffer-timer-debug-buffer))
-    (end-of-buffer)
+    (goto-char (point-max))
     (insert msg)))
 
 ;
@@ -132,10 +144,18 @@
   (buffer-timer-write-text-results)
 )
 
+(defun buffer-timer-create-file-name ()
+  (let ((newname (format-time-string buffer-timer-output-file)))
+    (if buffer-timer-clear-data-on-filename-change
+	(progn
+	  (if (not (equal buffer-timer-last-outputfile-name newname))
+	      (buffer-timer-clear))
+	  (setq buffer-timer-last-outputfile-name newname)))
+    newname))
+
 (defun buffer-timer-write-text-results ()
-  (interactive)
   (save-excursion
-    (let ((buf (find-file-noselect buffer-timer-output-file))
+    (let ((buf (find-file-noselect (buffer-timer-create-file-name)))
 	  (list buffer-timer-data))
       (set-buffer buf)
       (erase-buffer)
@@ -147,7 +167,8 @@
 (defun buffer-timer-write-el-results ()
   (interactive)
   (save-excursion
-    (let ((buf (find-file-noselect (concat buffer-timer-output-file ".el")))
+    (let ((buf 
+	   (find-file-noselect (concat (buffer-timer-create-file-name) ".el")))
 	  (list buffer-timer-data))
       (set-buffer buf)
       (erase-buffer)
@@ -300,7 +321,7 @@
 (defun buffer-timer-read-data ()
   (interactive)
   (save-excursion
-    (let ((buf (find-file-noselect buffer-timer-output-file)))
+    (let ((buf (find-file-noselect (buffer-timer-create-file-name))))
       (set-buffer buf)
       (beginning-of-buffer)
       (while list
@@ -441,7 +462,7 @@
 ; load previous data set
 ;
 
-(let ((elfile (concat buffer-timer-output-file ".el")))
+(let ((elfile (concat (buffer-timer-create-file-name) ".el")))
   (if (and buffer-timer-load-previous (file-exists-p elfile))
       (load-file elfile)))
 
