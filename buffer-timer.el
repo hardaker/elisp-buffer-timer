@@ -33,7 +33,7 @@ Swiched to after buffer-timer-idle-limit seconds.")
 (defvar buffer-timer-small-idle-time 5
   "minimum idle time to wait before saving data")
 
-(defvar buffer-timer-save-every-x-idletimes 15)
+(defvar buffer-timer-save-every-x-idletimes 5
   "save data only every buffer-timer-save-every-x-idletimes number of idle times.")
 
 (defvar buffer-timer-rename-always  nil
@@ -50,20 +50,43 @@ Swiched to after buffer-timer-idle-limit seconds.")
     ("^\\*"         	      . "emacs-internal")
     ("^ "         	      . "emacs-really-internal")))
 
+(defvar buffer-timer-regexp-master-list
+  "A list of (name . regexp) or (name . ((subname . regexp)...)) type things..."
+  '(("news" .  (("group" . "^\\*Group\\*")
+		("summary" . "^\\*Summary\\*")
+		("out" . "drafts/[0-9]+$")))
+    ("idle" .			  "^\\*idle\\*")
+    ("cvs" .			  "^\\*cvs.*\\*")           
+    ("compiling" .		  "^\\*compilation\\*")
+    ("emacs" . (("emacs-internal" .	  "^\\*")
+		("emacs-really-internal" . "^ ")))
+    ))
+
+(defvar buffer-timer-munge-dont-show-zeros 
+  "if t, dont display munge results for zero time matches"
+t)
+
+(defvar buffer-timer-munge-visible-depth 100
+  "Maximum hierarchial depth to show as visible by default.")
+
+(defvar buffer-timer-mouse-face 'highlight
+  "*Face used for mouse highlighting in the summary buffer.")
+
 ;
 ; internal variables
 ;
-(defvar buffer-timer-do-warnings    nil)
-(defvar buffer-timer-locked         nil)
-(defvar buffer-timer-debug          nil)
-(defvar buffer-timer-debug-buffer   "*buffer-timer-log*")
-(defvar buffer-timer-last-file-name nil)
+(defvar buffer-timer-do-warnings    	  nil)
+(defvar buffer-timer-locked         	  nil)
+(defvar buffer-timer-debug          	  'file)
+(defvar buffer-timer-debug-file   	  "/home/hardaker/.buffer-timer-log")
+(defvar buffer-timer-debug-buffer   	  "*buffer-timer-log*")
+(defvar buffer-timer-debug-buf            nil)
+(defvar buffer-timer-last-file-name 	  nil)
 (defvar buffer-timer-last-outputfile-name nil)
-(defvar buffer-timer-data           nil)
-(defvar buffer-timer-start-time     (current-time))
-(defvar buffer-timer-switch-time    nil)
-(defvar buffer-timer-regexp-ignore-switch-errors
-  '("^ \\*Minibuf"))
+(defvar buffer-timer-data           	  nil)
+(defvar buffer-timer-start-time     	  (current-time))
+(defvar buffer-timer-switch-time    	  nil)
+(defvar buffer-timer-switch-idle-time     nil)
 
 ;
 ; functions
@@ -103,11 +126,38 @@ Swiched to after buffer-timer-idle-limit seconds.")
 (setq buffer-timer-switch-time (buffer-timer-current-time))
 (setq buffer-timer-last-file-name (buffer-timer-get-current-buffer-string))
 
+(defvar buffer-timer-recursive-watch nil)
 (defun buffer-timer-debug-msg (msg)
-  (save-excursion
-    (set-buffer (get-buffer-create buffer-timer-debug-buffer))
-    (goto-char (point-max))
-    (insert msg)))
+  (if buffer-timer-debug
+      (save-excursion
+	(if (not buffer-timer-recursive-watch)
+	    (progn
+	      (if (not (bufferp buffer-timer-debug-buf))
+		  (progn
+		    (setq buffer-timer-recursive-watch t)
+		    (if (eq buffer-timer-debug 'file)
+			(setq buffer-timer-debug-buf
+			      (find-file-noselect 
+			       (format-time-string buffer-timer-debug-file)))
+		      (setq buffer-timer-debug-buf 
+			    (get-buffer-create buffer-timer-debug-buffer)))
+		    (setq buffer-timer-recursive-watch nil)))
+	      (if (bufferp buffer-timer-debug-buf)
+		  (progn
+		    (set-buffer buffer-timer-debug-buf)
+		    (goto-char (point-max))
+		    (insert msg))
+		(message "buffer-timer: couldn't create log")))))))
+
+;
+; add a time to an alist
+;
+(defun buffer-timer-add-time (thetime thename thelist)
+  (let ((currentnum (cdr (assoc thename thelist))))
+    (if currentnum
+	(setcdr (assoc thename thelist) 
+		(+ currentnum thetime))
+      (cons (cons rename timespent) thelist))))
 
 ;
 ; record the last length of time as associated with a particular buffer
@@ -129,9 +179,9 @@ Swiched to after buffer-timer-idle-limit seconds.")
 		  (setcdr (assoc rename thelist) 
 			  (+ currentnum timespent))
 		(setq thelist (cons (cons rename timespent) thelist)))
-	      (if buffer-timer-debug
-		  (buffer-timer-debug-msg 
-		   (format "%4d\t%s\n" timespent rename)))))
+	      (buffer-timer-debug-msg 
+	       (format "%s %4d %s %s\n" (current-time-string) timespent 
+		       (buffer-timer-time-string timespent) rename))))
       (bt-warn "empty buffer name passed in"))
     (setq buffer-timer-switch-time now)
     (if (not havelist)
@@ -151,11 +201,36 @@ Swiched to after buffer-timer-idle-limit seconds.")
 					 (caar buffer-timer-data) "]: ")
 				 buffer-timer-data
 				 nil nil nil nil (caar buffer-timer-data))
-		(read-number "Number of Seconds: " t)))
+		(buffer-timer-convert-time-string
+		 (let ((tstring
+			(buffer-timer-time-string
+			 (if buffer-timer-switch-idle-time
+			     (+ 300 (- (buffer-timer-current-time) 
+				       buffer-timer-switch-idle-time))
+			   0))))
+		   (read-string (format "Transfer time [%s]: " tstring)
+				nil nil tstring)))))
   (buffer-timer-remember from (- 0 timeamount))
   (buffer-timer-remember to timeamount)
   (message (format "transfered %s seconds from %s to %s" 
 		   (buffer-timer-time-string timeamount) from to)))
+
+(defun buffer-timer-adjust-time (to timeamount)
+  "add TIMEAMOUNT seconds to TO"
+  (interactive (list
+		(completing-read (concat "To Subject: [" 
+					 (caar buffer-timer-data) "]: ")
+				 buffer-timer-data
+				 nil nil nil nil (caar buffer-timer-data))
+		(read-number (format "Number of Seconds [%d]: " 
+				     (if buffer-timer-switch-idle-time
+					 (- (buffer-timer-current-time) 
+					    buffer-timer-switch-idle-time) 0))
+			     t (if buffer-timer-switch-idle-time
+				   (- (buffer-timer-current-time) 
+				      buffer-timer-switch-idle-time) 0))))
+  (buffer-timer-remember to timeamount)
+  (message (format "added %s to %s" (buffer-timer-time-string timeamount) to)))
 
 ;
 ; write out our data to a save file
@@ -164,10 +239,16 @@ Swiched to after buffer-timer-idle-limit seconds.")
   (interactive)
   (buffer-timer-write-el-results)
   (buffer-timer-write-text-results)
+  (if (and (eq buffer-timer-debug 'file)
+	   (bufferp buffer-timer-debug-buf))
+      (progn
+	(set-buffer buffer-timer-debug-buf)
+	(save-buffer)))
 )
 
-(defun buffer-timer-create-file-name ()
-  (let ((newname (format-time-string buffer-timer-output-file)))
+(defun buffer-timer-create-file-name (&optional inputfilename)
+  (let* ((inputfilename (or inputfilename buffer-timer-output-file))
+	 (newname (format-time-string inputfilename)))
     (if buffer-timer-clear-data-on-filename-change
 	(progn
 	  (if (not (equal buffer-timer-last-outputfile-name newname))
@@ -232,12 +313,37 @@ Swiched to after buffer-timer-idle-limit seconds.")
 (defun buffer-timer-sort-by-name (a b)
   (string-lessp (car a) (car b)))
 
-(let ((tstring "*idle*"))
-  (if (or (equal tstring buffer-timer-idle-buffer)
-			(equal tstring "idle"))
-      (message "yes")
-    (message "no")))
+;
+; generate a master report
+;
+(defun buffer-timer-add-time (thetime thename thelist)
+  (let ((currentnum (cdr (assoc thename thelist))))
+    (if currentnum
+	(setcdr (assoc thename thelist) 
+		(+ currentnum thetime))
+      (cons (cons rename timespent) thelist))))
 
+(defun buffer-timer-assign-time (name time list)
+  (let ((sub (assoc name list)))
+    (if (listp sub)
+	(setq list (buffer-timer-assign-time name time sub))))
+)
+(defun buffer-timer-generate-master-summary (&optional inlist)
+  (interactive)
+  (let ((list (or inlist buffer-timer-data))
+	(regexplist buffer-timer-master-list)
+	(ret (cons (cons "dummy" 0) nil)))
+    (while list
+      (setq ret (buffer-timer-assign-time (caar list) (cdar list) ret))
+      (setq list (cdr list)))))
+
+;
+; 
+;
+
+;
+; print the straight list of stuff
+;
 (defun buffer-timer-summarize (&optional sortby)
   (interactive)
   (save-excursion
@@ -257,7 +363,7 @@ Swiched to after buffer-timer-idle-limit seconds.")
       (while list
 	(let* ((totaltime (cdar list))
 	       (bufname (caar list))
-	       (tstring   (buffer-timer-time-string totaltime)))
+	       (tstring (buffer-timer-time-string totaltime)))
 	  (if (> totaltime 0)
 	      (progn
 		(setq addedtime (+ addedtime totaltime))
@@ -280,6 +386,36 @@ Swiched to after buffer-timer-idle-limit seconds.")
 						    buffer-timer-start-time)))))
     )))
 
+;
+; convert a string like "15m 30s" and "1h 20s" to a second count.
+;
+(defun buffer-timer-convert-time-string (timestr)
+  (if (not (string-match "[hsm]" timestr))
+      ; straight seconds, no specfiers
+      (string-to-int timestr)
+    (let ((hrs 0) (min 0) (sec 0) (time 0))
+      (if (string-match "\\([0-9]+s\\)" timestr)
+	  (setq time (string-to-int
+		      (substring timestr (match-beginning 1) 
+				 (1- (match-end 1))))))
+      (if (string-match "\\([0-9]+m\\)" timestr)
+	  (setq time (+ time
+			(* 60 (string-to-int
+			       (substring timestr 
+					  (match-beginning 1) 
+					  (1- (match-end 1))))))))
+      (if (string-match "\\([0-9]+h\\)" timestr)
+	  (setq time (+ time
+			(* 3600 (string-to-int
+				 (substring timestr 
+					    (match-beginning 1) 
+					    (1- (match-end 1))))))))
+      time)))
+
+; (buffer-timer-convert-time-string "4h")
+;
+; print the regexp merged stuff
+;
 (defun buffer-timer-report (&optional sortby)
   (interactive)
   (save-excursion
@@ -405,6 +541,7 @@ Swiched to after buffer-timer-idle-limit seconds.")
 	  ;; past X amount of time.
 	  (setq buffer-timer-switch-time (buffer-timer-current-time)))))
   ;; change to the idle buffer, don't increment anything.
+  (setq buffer-timer-switch-idle-time buffer-timer-switch-time)
   (switch-to-buffer buffer-timer-idle-buffer))
   
 ;
@@ -448,7 +585,185 @@ Swiched to after buffer-timer-idle-limit seconds.")
     (error "buffer-timer: can't unlock since we weren't locked")))
 
 
-  
+(defun buffer-timer-view-log ()
+  (interactive)
+  (if (bufferp buffer-timer-debug-buf)
+      (switch-to-buffer buffer-timer-debug-buf)
+    (warn "debugging log not turned on")))
+
+;
+; complex reporting
+;
+(defvar buffer-timer-munge-map (make-sparse-keymap "buffer-timer-munge-keys")
+  "Keymap to show/hide sub-groups of buffer-timer munge reports.")
+
+(define-key buffer-timer-munge-map [(button2)] 'buffer-timer-toggle-munge-state)
+(define-key buffer-timer-munge-map [(button3)] 'buffer-timer-toggle-munge-state)
+(define-key buffer-timer-munge-map [(return)] 'buffer-timer-toggle-munge-state)
+
+(defun buffer-timer-make-invis-button (ext &optional subregionext startinvis)
+  (if startinvis
+      (set-extent-property subregionext 'invisible t))
+  (set-extent-property ext 'end-open t)
+  (set-extent-property ext 'start-open t)
+  (set-extent-property ext 'keymap buffer-timer-munge-map)
+  (set-extent-property ext 'mouse-face buffer-timer-mouse-face)
+  (set-extent-property ext 'intangible t)
+  (if (and subregionext (extentp subregionext))
+      (set-extent-property ext 'subregion subregionext))
+  ;; Help
+  (set-extent-property
+   ext 'help-echo
+   "button2 toggles visibilty of sub-groups below this one.")
+)
+
+(defun buffer-timer-toggle-munge-state (event)
+  "Toggle smiley at given point."
+  (interactive "e")
+  (let* ((ext (event-glyph-extent event))
+	 (subregion (if ext (extent-property ext 'subregion)))
+	 (subregionvis (if subregion (extent-property ext 'invisible)))
+	 (pt (event-closest-point event)))
+    (if (not ext)
+	(when pt
+	  (while 
+	      (and
+	       (setq ext (extent-at pt (event-buffer event) nil ext 'at))
+	       (not (setq subregion (extent-property ext 'subregion)))))))
+    (if subregion
+	(if (not (extent-property subregion 'invisible))
+	    (set-extent-property subregion 'invisible t)
+	  (set-extent-property subregion 'invisible nil)))))
+
+(defun buffer-timer-copy-sequence (sequence)
+  (let* ((ret (copy-sequence sequence))
+	 (iter ret))
+    (while (and iter (listp iter))
+      (if (listp (car iter))
+	  (progn
+	    (setcar iter (buffer-timer-copy-sequence (car iter)))
+	    (setcar iter (cons 0 (car iter)))))
+      (setq iter (cdr iter)))
+    ret))
+
+(defun buffer-timer-add-to-master (master addstring value indent)
+  (let ((ret nil))
+    (while (and (not ret) master)
+      (let ((currentnum (caar master))
+	    (rest (cdar master)))
+	(cond
+	 ((stringp (cdr rest))
+	  (if (string-match (cdr rest) addstring)
+	      (progn
+		(setcar (car master) (+ value currentnum))
+;		(insert (format "%s match %s = %s -> %s : %d" indent addstring (cdr rest) (car rest) (caar master)))
+		(setq ret t))
+;	    (insert (format "%s  no match %s -> %s\n" indent (cdr rest) (car rest)))
+	    ))
+	 (t
+;	  (insert (format "%s  list: %s\n" indent (car rest)))
+	  (if (setq ret 
+		    (buffer-timer-add-to-master (cdr rest) addstring value 
+						(format "%s  " indent)))
+	      (progn
+		(setcar (car master) (+ value currentnum))
+;		(insert (format " %s" (car rest)))
+		)))))
+      (setq master (cdr master)))
+    ret))
+
+(defun buffer-timer-munge-sort-by-seconds (a b)
+  (> (car a) (car b)))
+
+(defun buffer-timer-munge-sort-by-name (a b)
+  (string-lessp (cadr a) (cadr b)))
+
+(defun buffer-timer-display-munge-results (master indent depth)
+  (let ((sorted 
+	 (cond
+	  ((eq buffer-timer-summarize-sort-by 'time)
+	   (sort master 'buffer-timer-munge-sort-by-seconds))
+	  ((eq buffer-timer-summarize-sort-by 'name)
+	   (sort master 'buffer-timer-munge-sort-by-name)))))
+    (while sorted
+      (let ((ourstart (point)))
+	   (if (and buffer-timer-munge-dont-show-zeros (not (eq 0 (caar sorted))))
+	       (insert (format "%s %-30s %10s     %d\n" indent (cadar sorted) 
+			       (buffer-timer-time-string (caar sorted)) (caar sorted))))
+	   (if (listp (cddar sorted))
+	       (let ((substart (point)))
+		 (buffer-timer-display-munge-results (cddar sorted) 
+						     (concat "  " indent)
+						     (1- depth))
+		 (let ((newext (make-extent ourstart substart))
+		       (subext (make-extent substart (point))))
+		   (buffer-timer-make-invis-button newext subext
+						   (> 1 depth))))))
+      (setq sorted (cdr sorted)))))
+
+;(progn
+;  (switch-to-buffer-other-window "*buffer-timer-results*")
+;  (make-local-variable 'buffer-timer-data)
+;  (load "/home/hardaker/.buffer-timer/timesheet-2000-12-04.el")
+;  (buffer-timer-munge buffer-timer-data t)
+;  (load "/home/hardaker/.buffer-timer/timesheet-2000-12-05.el")
+;  (buffer-timer-munge buffer-timer-data t)
+;  (load "/home/hardaker/.buffer-timer/timesheet-2000-12-06.el")
+;  (buffer-timer-munge buffer-timer-data t)
+;  (kill-local-variable 'buffer-timer-data))
+
+(defun buffer-timer-munge-date-range (daychgone daychgtwo)
+  "display info from TODAY-DAYCHGONE to TODAY-DAYCHGTWO"
+  (interactive "nNumber of days ago marking start of range to view: \nnNumber of days ago marking end of range to view: ")
+  (switch-to-buffer-other-window "*buffer-timer-results*")
+  (erase-buffer)
+  (kill-local-variable 'buffer-timer-data)
+  (make-local-variable 'buffer-timer-data)
+  (setq daychgone (- 0 daychgone))
+  (setq daychgtwo (- 0 daychgtwo))
+  (while (<= daychgone daychgtwo)
+    (let* ((now (current-time))
+	   (low (+ (second now) (* daychgone 60 60 24)))
+	   (high (first now)))
+      ; stupid stupid time format.  Who uses 16 bit machines anymore?
+      (while (< low 0)
+	(setq low (+ low 65536))
+	(setq high (- high 1)))
+      (while (> low 65535)
+	(setq low (- low 65536))
+	(setq high (+ high 1)))
+      ; insert a date stamp
+      (insert (format-time-string "\nDate:  %Y-%m-%d  %a\n" (list high low)))
+      (let ((filename 
+	     (format-time-string (concat buffer-timer-output-file ".el")
+				 (list high low))))
+;	(insert (format "File (%d):  %s\n" daychgone filename))
+	(if (file-exists-p filename)
+	    (progn
+	      (load filename)
+	      (buffer-timer-munge buffer-timer-data t))
+	  (insert "  No data\n")))
+      (setq daychgone (1+ daychgone))))
+  (kill-local-variable 'buffer-timer-data))
+
+;(buffer-timer-munge-date-range -15 -1)
+
+(defun buffer-timer-munge (&optional list nodestroy)
+  (interactive)
+  (switch-to-buffer-other-window "*buffer-timer-results*")
+  (kill-local-variable 'buffer-timer-data)
+  (if (not nodestroy)
+      (erase-buffer))
+  (let* ((list (or list (copy-sequence buffer-timer-data)))
+	 (master (buffer-timer-copy-sequence buffer-timer-regexp-master-list)))
+    (while list
+;      (insert (format "starting: %s\n" (caar list)))
+      (buffer-timer-add-to-master master (caar list) (cdar list) "")
+;      (insert "\n\n")
+      (setq list (cdr list)))
+    (buffer-timer-display-munge-results master "" 
+					buffer-timer-munge-visible-depth)
+    ))
 
 ;
 ; note when we go idle for too long
@@ -467,14 +782,24 @@ Swiched to after buffer-timer-idle-limit seconds.")
 ;
 ; keybindings
 ;
+
+; reporting
 (global-set-key "\C-cts" 'buffer-timer-summarize)
-(global-set-key "\C-ctS" 'buffer-timer-write-results)
-(global-set-key "\C-cti" 'buffer-timer-go-idle)
-(global-set-key "\C-ctc" 'buffer-timer-clear)
 (global-set-key "\C-ctr" 'buffer-timer-report)
+(global-set-key "\C-ctS" 'buffer-timer-write-results)
+(global-set-key "\C-ctc" 'buffer-timer-clear)
+(global-set-key "\C-ctm" 'buffer-timer-munge)
+(global-set-key "\C-ctM" 'buffer-timer-munge-date-range)
+
+; modifying data
 (global-set-key "\C-ctt" 'buffer-timer-transfer-time)
+(global-set-key "\C-cta" 'buffer-timer-adjust-time)
+
+; locking to a subject
+(global-set-key "\C-cti" 'buffer-timer-go-idle)
 (global-set-key "\C-ctl" 'buffer-timer-lock)
 (global-set-key "\C-ctu" 'buffer-timer-unlock)
+(global-set-key "\C-ctL" 'buffer-timer-view-log)
 
 ;
 ; maybe load previous data set
