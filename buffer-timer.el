@@ -40,18 +40,17 @@ Swiched to after buffer-timer-idle-limit seconds.")
   "if t, sort/classify the buffer names as they are processed.")
 
 (defvar buffer-timer-regexp-merge-list
-  "A list of (regexp . summary) pairs to make condensed reports from."
-  '(("^\\*Group\\*"   	      . "news")  ; or maybe mail!
+    '(("^\\*Group\\*"   	      . "news")  ; or maybe mail!
     ("^\\*Summary\\*" 	      . "news")
     ("drafts/[0-9]+$" 	      . "news-post")
     ("^\\*idle\\*"            . "idle")
     ("^\\*cvs.*\\*"           . "cvs")
     ("^\\*compilation\\*"     . "compiling")
     ("^\\*"         	      . "emacs-internal")
-    ("^ "         	      . "emacs-really-internal")))
+    ("^ "         	      . "emacs-really-internal"))
+  "A list of (regexp . summary) pairs to make condensed reports from.")
 
 (defvar buffer-timer-regexp-master-list
-  "A list of (name . regexp) or (name . ((subname . regexp)...)) type things..."
   '(("news" .  (("group" . "^\\*Group\\*")
 		("summary" . "^\\*Summary\\*")
 		("out" . "drafts/[0-9]+$")))
@@ -60,11 +59,12 @@ Swiched to after buffer-timer-idle-limit seconds.")
     ("compiling" .		  "^\\*compilation\\*")
     ("emacs" . (("emacs-internal" .	  "^\\*")
 		("emacs-really-internal" . "^ ")))
-    ))
+    )
+  "A list of (name . regexp) or (name . ((subname . regexp)...)) type things..."
+  )
 
-(defvar buffer-timer-munge-dont-show-zeros 
-  "if t, dont display munge results for zero time matches"
-t)
+(defvar buffer-timer-munge-dont-show-zeros t
+  "if t, dont display munge results for zero time matches")
 
 (defvar buffer-timer-munge-visible-depth 100
   "Maximum hierarchial depth to show as visible by default.")
@@ -800,23 +800,38 @@ static char *magick[] = {
       (let ((currentnum (caar master))
 	    (rest (cdar master)))
 	(cond
-	 ((stringp (cdr rest))
-	  (if (string-match (cdr rest) addstring)
-	      (progn
-		(setcar (car master) (+ value currentnum))
-;		(insert (format "%s match %s = %s -> %s : %d" indent addstring (cdr rest) (car rest) (caar master)))
-		(setq ret t))
-;	    (insert (format "%s  no match %s -> %s\n" indent (cdr rest) (car rest)))
-	    ))
-	 (t
-;	  (insert (format "%s  list: %s\n" indent (car rest)))
+	 ((and (listp (cdr rest))
+	       (listp (cadr rest))
+	       (integerp (caadr rest)))
 	  (if (setq ret 
 		    (buffer-timer-add-to-master (cdr rest) addstring value 
 						(format "%s  " indent)))
 	      (progn
 		(setcar (car master) (+ value currentnum))
-;		(insert (format " %s" (car rest)))
-		)))))
+		)))
+	 ((and (listp (cdr rest))
+	       (stringp (cadr rest)))
+	  (if (string-match (cadr rest) addstring)
+	      (progn
+		(setcar (car master) (+ value currentnum))
+		(setcdr rest (append (cdr rest) (list addstring value)))
+		(setq ret t))
+	    ))
+	 ((stringp (cdr rest))
+	  (if (string-match (cdr rest) addstring)
+	      (progn
+		(setcar (car master) (+ value currentnum))
+		(setcdr rest (list (cdr rest) addstring value))
+		(setq ret t))
+	    ))
+	 (t
+	  (if (setq ret 
+		    (buffer-timer-add-to-master (cdr rest) addstring value 
+						(format "%s  " indent)))
+	      (progn
+		(setcar (car master) (+ value currentnum))
+		)))
+	 ))
       (setq master (cdr master)))
     ret))
 
@@ -834,19 +849,43 @@ static char *magick[] = {
 	  ((eq buffer-timer-summarize-sort-by 'name)
 	   (sort master 'buffer-timer-munge-sort-by-name)))))
     (while sorted
-      (let ((ourstart (point)))
-	   (if (and buffer-timer-munge-dont-show-zeros (not (eq 0 (caar sorted))))
-	       (insert (format "%s %-30s %10s     %d\n" indent (cadar sorted) 
-			       (buffer-timer-time-string (caar sorted)) (caar sorted))))
-	   (if (listp (cddar sorted))
-	       (let ((substart (point)))
-		 (buffer-timer-display-munge-results (cddar sorted) 
-						     (concat "  " indent)
-						     (1- depth))
-		 (let ((newext (make-extent ourstart substart))
-		       (subext (make-extent substart (point))))
-		   (buffer-timer-make-invis-button newext subext
-						   (> 1 depth))))))
+      (let ((ourstart (point)) ext1 ext2)
+	(if (and buffer-timer-munge-dont-show-zeros (not (eq 0 (caar sorted))))
+	    (progn
+	      (insert (format "%s %-30s %10s     %d\n" indent (cadar sorted) 
+			      (buffer-timer-time-string (caar sorted))
+			      (caar sorted)))
+	      (if (and (listp (cddar sorted))
+		       (stringp (caddar sorted)))
+		  (let ((startpt (point)) (startlist (cdddar sorted)))
+		    (while startlist
+		      (insert (format "  %s %-30s %10s     %d\n" 
+				      indent (car startlist)
+				      (buffer-timer-time-string 
+				       (second startlist))
+				      (second startlist)))
+		      (setq startlist (cddr startlist)))
+;		    (setq ext1 (make-extent ourstart startpt))
+;		    (setq ext2 (make-extent startpt (1- (point))))
+		    (let ((newext (make-extent ourstart startpt))
+			  (subext (make-extent startpt (point))))
+		      (buffer-timer-make-invis-button newext subext
+						      (> 1 depth)))
+		    ))))
+	(if (and (listp (cddar sorted)) (listp (caddar sorted))
+		 (integerp (car (caddar sorted))))
+	    (let ((substart (point)))
+	      (buffer-timer-display-munge-results (cddar sorted) 
+						  (concat "  " indent)
+						  (1- depth))
+	      (let ((newext (make-extent ourstart substart))
+		    (subext (make-extent substart (point))))
+		(buffer-timer-make-invis-button newext subext
+						(> 1 depth)))))
+;	(if (and ext1 ext2)
+;	    (buffer-timer-make-invis-button ext1 ext2
+;					    (> 1 depth)))
+	)
       (setq sorted (cdr sorted)))))
 
 ;(progn
