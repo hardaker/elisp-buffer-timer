@@ -116,6 +116,10 @@ Swiched to after buffer-timer-idle-limit seconds.")
 	  (set-extent-begin-glyph myext buffer-timer-locked-gl)
 	  mystr))
     (?t (buffer-timer-time-string buffer-timer-mytime) ?s)
+    (?a buffer-timer-search-string-a ?s)
+    (?b buffer-timer-search-string-b ?s)
+    (?c buffer-timer-search-string-c ?s)
+    (?d buffer-timer-search-string-d ?s)
     (?T buffer-timer-mytime ?d)))
 
 (defvar buffer-timer-do-warnings    	  nil)
@@ -131,8 +135,10 @@ Swiched to after buffer-timer-idle-limit seconds.")
 (defvar buffer-timer-switch-time    	  nil)
 (defvar buffer-timer-switch-idle-time     nil)
 (defvar buffer-timer-lock-started         nil)
+(defvar buffer-timer-search-a             nil)
+(defvar buffer-timer-search-string-a      "")
+(defvar buffer-timer-search-int-a         0)
 (defvar buffer-timer-status               "")
-(defvar buffer-timer-backup-data nil)
 (defvar buffer-timer-locked-xpm "/* XPM */
 static char *magick[] = {
 /* columns rows colors chars-per-pixel */
@@ -324,6 +330,8 @@ static char *magick[] = {
 			       (format-time-string buffer-timer-debug-file)))
 		      (setq buffer-timer-debug-buf 
 			    (get-buffer-create buffer-timer-debug-buffer)))
+		    (make-local-variable 'save-buffers-skip)
+		    (setq save-buffers-skip t)
 		    (setq buffer-timer-recursive-watch nil)))
 	      (if (bufferp buffer-timer-debug-buf)
 		  (progn
@@ -662,15 +670,19 @@ static char *magick[] = {
 (defvar buffer-timer-do-early-idle-count 0)
 (defun buffer-timer-do-early-idle ()
   (interactive)
-  (if buffer-timer-save-when-idle
-      (progn
 ;	(message (format "saving data %d" buffer-timer-do-early-idle-count))
-	(setq buffer-timer-do-early-idle-count 
-	      (+ buffer-timer-do-early-idle-count 1))
-	(if (> buffer-timer-do-early-idle-count 
-	       buffer-timer-save-every-x-idletimes)
+  (setq buffer-timer-do-early-idle-count 
+	(+ buffer-timer-do-early-idle-count 1))
+  (if (> buffer-timer-do-early-idle-count 
+	 buffer-timer-save-every-x-idletimes)
+      (progn
+	(setq buffer-timer-do-early-idle-count 0)
+	(if buffer-timer-search-a
+	    (setq buffer-timer-search-string-a 
+		  (buffer-timer-find-munge-string
+		   buffer-timer-search-a)))
+	(if buffer-timer-save-when-idle
 	    (progn
-	      (setq buffer-timer-do-early-idle-count 0)
 	      (buffer-timer-write-results))))))
 
 (defun buffer-timer-do-idle-application (event)
@@ -681,13 +693,17 @@ static char *magick[] = {
     (if (not ext)
 	(when pt
 	  (setq ext (extent-at pt (event-buffer event) nil ext 'at))))
-    (if ext (setq to (extent-property ext 'towhat)))
-    (if (symbolp to) (setq to (symbol-name to)))
-    (if to
-	(buffer-timer-transfer-time buffer-timer-idle-buffer to
-				    (+ 300 (- (buffer-timer-current-time) 
-					      buffer-timer-switch-idle-time)) t)
-      (call-interactively 'buffer-timer-transfer-time))))
+    (if (and (extentp ext) (extent-property ext 'unlock))
+	(buffer-timer-unlock)
+      
+      (if ext (setq to (extent-property ext 'towhat)))
+      (if (symbolp to) (setq to (symbol-name to)))
+      (if to
+	  (buffer-timer-transfer-time buffer-timer-idle-buffer to
+				      (+ 300 (- (buffer-timer-current-time) 
+						buffer-timer-switch-idle-time)) 
+				      t)
+	(call-interactively 'buffer-timer-transfer-time)))))
 
 (defun buffer-timer-idle-message ()
   (interactive)
@@ -698,40 +714,51 @@ static char *magick[] = {
 	(lastbuf (buffer-name (other-buffer)))
 	newext)
 
-    ; generic button
-    (insert "\tApply current idle time to something generic\n")
-    (setq newext (make-extent here (point)))
-    (buffer-timer-make-invis-button newext nil nil 
-				    buffer-timer-idle-button-map
-				    "apply idle time to something else")
+    (if buffer-timer-locked
+	(progn
+	  (insert (concat "\tUnlock from " buffer-timer-locked "\n"))
+	  (setq newext (make-extent here (point)))
+	  (set-extent-property newext 'unlock t)
+	  (buffer-timer-make-invis-button newext nil nil 
+					  buffer-timer-idle-button-map
+					  (concat "Unlock from" 
+						  buffer-timer-locked "\n")))
 
-    ; last visited button
-    (setq here (point))
-    (insert (concat "\tApply current idle time to \"" lastbuf "\"\n"))
-    (setq newext (make-extent here (point)))
-    (set-extent-property newext 'towhat lastbuf)
-    (buffer-timer-make-invis-button newext nil nil 
-				    buffer-timer-idle-button-map
-				    (concat "\tApply current idle time to \"" 
-					    lastbuf "\"\n"))
+      ;; not locked
+      ;; generic button
+      (insert "\tApply current idle time to something generic\n")
+      (setq newext (make-extent here (point)))
+      (buffer-timer-make-invis-button newext nil nil 
+				      buffer-timer-idle-button-map
+				      "apply idle time to something else")
 
-    ; list
-    (while frequent
-      (let* ((thesymbol (car frequent))
-	     (thestring (concat "\tApply current idle time to \"" 
-				(symbol-name (car frequent)) "\"\n")))
-	(setq here (point))
-	(insert thestring)
-	(setq newext (make-extent here (point)))
-	(set-extent-property newext 'towhat thesymbol)
-	(buffer-timer-make-invis-button newext nil nil 
-					buffer-timer-idle-button-map
-					thestring)
-	(setq frequent (cdr frequent))))
+					; last visited button
+      (setq here (point))
+      (insert (concat "\tApply current idle time to \"" lastbuf "\"\n"))
+      (setq newext (make-extent here (point)))
+      (set-extent-property newext 'towhat lastbuf)
+      (buffer-timer-make-invis-button newext nil nil 
+				      buffer-timer-idle-button-map
+				      (concat "\tApply current idle time to \"" 
+					      lastbuf "\"\n"))
 
-)
-  (insert "\n\n(buffer-timer-idle-message)\n")
-)
+					; list
+      (while frequent
+	(let* ((thesymbol (car frequent))
+	       (thestring (concat "\tApply current idle time to \"" 
+				  (symbol-name (car frequent)) "\"\n")))
+	  (setq here (point))
+	  (insert thestring)
+	  (setq newext (make-extent here (point)))
+	  (set-extent-property newext 'towhat thesymbol)
+	  (buffer-timer-make-invis-button newext nil nil 
+					  buffer-timer-idle-button-map
+					  thestring)
+	  (setq frequent (cdr frequent))))
+
+      )
+    (insert "\n\n(buffer-timer-idle-message)\n")
+    ))
 ; (progn (switch-to-buffer buffer-timer-idle-buffer) (buffer-timer-idle-message))
  
 ;
@@ -1097,30 +1124,69 @@ static char *magick[] = {
 	(if (file-exists-p filename)
 	    (progn
 	      (load filename)
-	      (buffer-timer-munge buffer-timer-data t))
+	      (buffer-timer-munge buffer-timer-data t t))
 	  (insert "  No data\n")))
       (setq daychgone (1+ daychgone))))
   (kill-local-variable 'buffer-timer-data)
   (buffer-timer-munge-mode))
 
-;(buffer-timer-munge-date-range -15 -1)
-
-(defun buffer-timer-munge (&optional list nodestroy)
-  (interactive)
-  (switch-to-buffer-other-window "*buffer-timer-results*")
-  (kill-local-variable 'buffer-timer-data)
-  (if (not nodestroy)
-      (erase-buffer))
+(defun buffer-timer-generate-munged (&optional list)
   (let* ((list (or list (copy-sequence buffer-timer-data)))
 	 (master (buffer-timer-copy-sequence buffer-timer-regexp-master-list)))
     (while list
-;      (insert (format "starting: %s\n" (caar list)))
       (buffer-timer-add-to-master master (caar list) (cdar list) "")
-;      (insert "\n\n")
       (setq list (cdr list)))
+    master))
+;(setq master (cdr (buffer-timer-generate-munged)))
+;(cddar master)
+;(caddar master)
+;(car (cdddar master))
+;(cadar master)n
+;(cdr master)
+;(car master)
+;(setq search-for "perl")
+
+;(buffer-timer-time-string (buffer-timer-find-munge-node "total" (buffer-timer-generate-munged)))
+;)
+; (buffer-timer-find-munge-string "totalt")
+
+(defun buffer-timer-find-munge-string (search-for &optional master)
+  (interactive)
+  (let ((result (buffer-timer-find-munge-node search-for master)))
+    (if result
+	(buffer-timer-time-string result)
+      "n/a")))
+
+(defun buffer-timer-find-munge-node (search-for &optional master)
+  (interactive)
+  (let ((master (or master (buffer-timer-generate-munged)))
+	ret)
+    (while (and (not ret) master)
+      (cond
+       ;; exact match
+       ((equal search-for (cadar master))
+	(setq ret (caar master)))
+       ;; top level of a sub-list
+       ((and (listp (car master))
+	     (integerp (caar master))
+	     (not (stringp (cddar master)))
+	     (listp (caddar master))
+	     (integerp (car (caddar master))))
+	(setq ret (buffer-timer-find-munge-node search-for (cddar master))))
+       )
+      (setq master (cdr master)))
+    ret))
+
+(defun buffer-timer-munge (&optional list nodestroy noswitch)
+  (interactive)
+  (if (not noswitch)
+      (switch-to-buffer-other-window "*buffer-timer-results*"))
+  (kill-local-variable 'buffer-timer-data)
+  (if (not nodestroy)
+      (erase-buffer))
+  (let* ((master (buffer-timer-generate-munged list)))
     (buffer-timer-display-munge-results master "" 
-					buffer-timer-munge-visible-depth)
-    )
+					buffer-timer-munge-visible-depth))
   (buffer-timer-munge-mode))
 
 (defun buffer-timer-munge-mode ()
@@ -1128,6 +1194,29 @@ static char *magick[] = {
   (interactive)
   (setq mode-name "Munge")
   (setq major-mode 'buffer-timer-munge-mode))
+
+(defun buffer-timer-is-locked-p (&rest list)
+  "Are we currently locked?"
+  (if buffer-timer-locked
+      t
+    nil))
+
+(defun buffer-timer-lockable-items (menu)
+  (let ((results
+	 (mapcar #'(lambda (x)
+		     (vector (symbol-name x)
+			     (list 'buffer-timer-lock (symbol-name x))))
+		 buffer-timer-frequent-topic-list)))
+	(if (not buffer-timer-locked)
+	    (append menu results))))
+
+(defun buffer-timer-do-menus ()
+  "Adds menu items to the Tools menu"
+  (add-menu-button '("Tools") '("Timer"
+				("Lock to"
+				 :filter buffer-timer-lockable-items)
+				[ "unlock" buffer-timer-unlock
+				  :active buffer-timer-locked ])))
 
 ;
 ; note when we go idle for too long
@@ -1145,7 +1234,8 @@ static char *magick[] = {
   (add-hook 'kill-emacs-hook 'buffer-timer-stop)
   (if buffer-timer-use-gutter
       (set-gutter-element-visible-p default-gutter-visible-p 'buffer-timer t))
-  (set-specifier default-gutter-height 15))
+  (set-specifier default-gutter-height 15)
+  (buffer-timer-do-menus))
 
 
 ; clean up for exiting
@@ -1156,6 +1246,7 @@ static char *magick[] = {
       (buffer-timer-unlock))
   (remove-hook 'pre-idle-hook 'buffer-timer-idle-switch)
   (buffer-timer-write-results)
+  (delete-menu-item '("Tools" "Timer"))
   (message "buffer-timer exiting")
 )
 
