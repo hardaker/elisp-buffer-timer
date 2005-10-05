@@ -17,7 +17,7 @@
 ;; from the Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA
 ;; 02139, USA.
 ;;
-;; $Revision: 1.15 $
+;; $Revision: 1.16 $
 
 (require 'gnus-spec)
 ;
@@ -143,6 +143,12 @@ Swiched to after buffer-timer-idle-limit seconds.")
 	       (myext (make-extent 0 1 mystr)))
 	  (set-extent-begin-glyph myext buffer-timer-locked-gl)
 	  mystr))
+    (?x buffer-timer-topic-depth-1 ?s)
+    (?y buffer-timer-topic-depth-2 ?s)
+    (?z buffer-timer-topic-depth-3 ?s)
+    (?X buffer-timer-search-depth-1 ?s)
+    (?Y buffer-timer-search-depth-2 ?s)
+    (?Z buffer-timer-search-depth-3 ?s)
     (?t (buffer-timer-time-string buffer-timer-mytime) ?s)
     (?a buffer-timer-search-string-a ?s)
     (?b buffer-timer-search-string-b ?s)
@@ -159,12 +165,23 @@ Swiched to after buffer-timer-idle-limit seconds.")
 (defvar buffer-timer-last-file-name 	  nil)
 (defvar buffer-timer-last-outputfile-name nil)
 (defvar buffer-timer-data           	  nil)
+(defvar buffer-timer-backup-data      	  nil)
 (defvar buffer-timer-start-time     	  (current-time))
 (defvar buffer-timer-switch-time    	  nil)
 (defvar buffer-timer-switch-idle-time     nil)
 (defvar buffer-timer-lock-started         nil)
 (defvar buffer-timer-search-a             nil)
 (defvar buffer-timer-search-string-a      "")
+(defvar buffer-timer-topic-depth-1        "")
+(defvar buffer-timer-topic-depth-2        "")
+(defvar buffer-timer-topic-depth-3        "")
+(defvar buffer-timer-search-depth-1       "")
+(defvar buffer-timer-search-depth-2       "")
+(defvar buffer-timer-search-depth-3       "")
+(defvar buffer-timer-search-1          	  nil)
+(defvar buffer-timer-search-2          	  nil)
+(defvar buffer-timer-search-3          	  nil)
+(defvar buffer-timer-do-depth)
 (defvar buffer-timer-search-int-a         0)
 (defvar buffer-timer-status               "")
 (defvar buffer-timer-locked-xpm "/* XPM */
@@ -747,6 +764,34 @@ static char *magick[] = {
 ; idle timer functions
 ;
 (defvar buffer-timer-do-early-idle-count 0)
+;(buffer-timer-do-idle-calculations)
+(defun buffer-timer-do-idle-calculations ()
+  (interactive)
+  (progn
+    (setq buffer-timer-do-early-idle-count 0)
+    (if buffer-timer-do-depth
+	(let ((chain (buffer-timer-find-munge-chain
+		      (buffer-timer-get-current-buffer-string))))
+	  (setq buffer-timer-topic-depth-1 (nth 0 chain))
+	  (setq buffer-timer-topic-depth-2 (nth 1 chain))
+	  (setq buffer-timer-topic-depth-3 (nth 2 chain))))
+    (if buffer-timer-search-a
+	(setq buffer-timer-search-string-a 
+	      (buffer-timer-find-munge-string
+	       buffer-timer-search-a)))
+    (if buffer-timer-search-1
+	(setq buffer-timer-search-depth-1
+	      (buffer-timer-find-munge-string buffer-timer-topic-depth-1)))
+    (if buffer-timer-search-2
+	(setq buffer-timer-search-depth-2
+	      (buffer-timer-find-munge-string buffer-timer-topic-depth-2)))
+    (if buffer-timer-search-3
+	(setq buffer-timer-search-depth-3
+	      (buffer-timer-find-munge-string buffer-timer-topic-depth-3)))
+    (if buffer-timer-save-when-idle
+	(progn
+	  (buffer-timer-write-results)))))
+
 (defun buffer-timer-do-early-idle ()
   (interactive)
 ;	(message (format "saving data %d" buffer-timer-do-early-idle-count))
@@ -754,15 +799,7 @@ static char *magick[] = {
 	(+ buffer-timer-do-early-idle-count 1))
   (if (> buffer-timer-do-early-idle-count 
 	 buffer-timer-save-every-x-idletimes)
-      (progn
-	(setq buffer-timer-do-early-idle-count 0)
-	(if buffer-timer-search-a
-	    (setq buffer-timer-search-string-a 
-		  (buffer-timer-find-munge-string
-		   buffer-timer-search-a)))
-	(if buffer-timer-save-when-idle
-	    (progn
-	      (buffer-timer-write-results))))))
+      (buffer-timer-do-idle-calculations)))
 
 (defun buffer-timer-do-idle-application (event)
   (interactive "e")
@@ -919,6 +956,7 @@ static char *magick[] = {
 (define-key buffer-timer-lock-map [(button3)] 'buffer-timer-unlock)
 ;(setq buffer-timer-use-gutter t)
 (defvar buffer-timer-old-extent nil)
+
 (defun buffer-timer-do-gutter-string ()
   (if buffer-timer-use-gutter
       (let* ((newname (if buffer-timer-locked
@@ -1248,7 +1286,7 @@ static char *magick[] = {
 
 ;(buffer-timer-time-string (buffer-timer-find-munge-node "total" (buffer-timer-generate-munged)))
 ;)
-; (buffer-timer-find-munge-string "totalt")
+; (buffer-timer-find-munge-string "total")
 
 (defun buffer-timer-find-munge-string (search-for &optional master)
   (interactive)
@@ -1276,6 +1314,42 @@ static char *magick[] = {
        )
       (setq master (cdr master)))
     ret))
+
+(defun buffer-timer-find-munge-chain (search-for &optional master listtot)
+  (interactive)
+  (let* ((master (or master (buffer-timer-generate-munged)))
+	 ret)
+    (while (and (not ret) master)
+      (cond
+       ;; exact match
+       ((equal search-for (cadar master))
+	(setq ret (cadar master)))
+       ;; top level of a sub-list
+       ((and (listp (car master))
+	     (integerp (caar master))
+	     (not (stringp (cddar master)))
+	     (listp (caddar master))
+	     (integerp (car (caddar master))))
+	(setq ret (buffer-timer-find-munge-chain search-for (cddar master))))
+       ((and (listp (car master))
+	     (integerp (caar master))
+	     (not (stringp (cddar master)))
+	     (stringp (caddar master))
+	     (string-match (caddar master) search-for))
+	(setq ret search-for)))
+      (if (not ret)
+	  (setq master (cdr master))))
+    (when ret
+      (if (listp ret)
+	  (setq ret (append (list (cadar master)) ret))
+	(setq ret (list (cadar master)))
+	))
+    ret))
+
+
+;(nth 1 (buffer-timer-find-munge-chain (buffer-timer-get-current-buffer-string)))
+;(nth 1 (buffer-timer-find-munge-chain "*idle*"))
+;(buffer-timer-find-munge-node (buffer-timer-get-current-buffer-string))
 
 (defun buffer-timer-munge (&optional list nodestroy noswitch)
   (interactive)
@@ -1330,10 +1404,23 @@ static char *magick[] = {
 (defun buffer-timer-start ()
   "turn on the buffer timer"
   (interactive)
+
+  ;;
+  ;; maybe load previous data set
+  ;;
+  (let ((elfile (concat (buffer-timer-create-file-name) ".el")))
+    (if (and buffer-timer-load-previous (file-exists-p elfile))
+	(load-file elfile)))
+
+  ;; do this before the gutten needs to display things
+  (buffer-timer-do-idle-calculations)
+
   (add-hook 'pre-idle-hook 'buffer-timer-idle-switch)
   (add-hook 'kill-emacs-hook 'buffer-timer-stop)
+
   (if buffer-timer-use-gutter
       (set-gutter-element-visible-p default-gutter-visible-p 'buffer-timer t))
+
   (set-specifier default-gutter-height 15)
   (buffer-timer-debug-msg "   buffer-timer-starting\n")
   (buffer-timer-do-menus))
@@ -1374,15 +1461,8 @@ static char *magick[] = {
 (global-set-key "\C-cti" 'buffer-timer-go-idle)
 (global-set-key "\C-ctl" 'buffer-timer-lock)
 (global-set-key "\C-ctu" 'buffer-timer-unlock)
+(global-set-key "\C-ctU" 'buffer-timer-do-idle-calculations)
 (global-set-key "\C-ctL" 'buffer-timer-view-log)
-
-;
-; maybe load previous data set
-;
-
-(let ((elfile (concat (buffer-timer-create-file-name) ".el")))
-  (if (and buffer-timer-load-previous (file-exists-p elfile))
-      (load-file elfile)))
 
 ;
 ;
