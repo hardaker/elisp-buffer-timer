@@ -181,7 +181,7 @@ Swiched to after buffer-timer-idle-limit seconds.")
 (defvar buffer-timer-search-1          	  nil)
 (defvar buffer-timer-search-2          	  nil)
 (defvar buffer-timer-search-3          	  nil)
-(defvar buffer-timer-do-depth)
+(defvar buffer-timer-do-depth             nil)
 (defvar buffer-timer-search-int-a         0)
 (defvar buffer-timer-status               "")
 (defvar buffer-timer-locked-xpm "/* XPM */
@@ -321,7 +321,13 @@ static char *magick[] = {
 \"1.7.@ ] 7.=.[ ' E B 4 + 7.\",
 \"1.7.u 1 ` V b 3 c < ; g 7.\"
 };")
-(defvar buffer-timer-locked-gl (make-glyph (vector 'xpm :data buffer-timer-locked-xpm)))
+
+(make-local-variable 'im-running-xemacs)
+(setq im-running-xemacs (string-match "XEmacs\\|Lucid" emacs-version))
+
+(if im-running-xemacs
+    (defvar buffer-timer-locked-gl (make-glyph (vector 'xpm :data buffer-timer-locked-xpm))))
+
 (defvar buffer-timer-recent-transfer-list '())
 
 ;
