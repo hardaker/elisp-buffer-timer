@@ -22,6 +22,10 @@
 ;
 ; user setable variables
 ;
+(defvar buffer-timer-running-xemacs
+  (string-match "XEmacs\\|Lucid" emacs-version)
+  "set to true if XEmacs is in use")
+
 (defvar buffer-timer-idle-limit 300
   "the amount of time to wait for user input before switching to the 
 buffer-timer-idle-buffer buffer")
@@ -93,7 +97,7 @@ Swiched to after buffer-timer-idle-limit seconds.")
 (defvar buffer-timer-mouse-face 'highlight
   "*Face used for mouse highlighting in the summary buffer.")
 
-(defvar buffer-timer-display-status-in-modeline t
+(defvar buffer-timer-display-status-in-modeline (if buffer-timer-running-xemacs t nil)
   "Should the buffer-timer status be displayed in the modeline.")
 
 (defvar buffer-timer-do-idle-buttons t
@@ -102,7 +106,7 @@ Swiched to after buffer-timer-idle-limit seconds.")
 (defvar buffer-timer-frequent-topic-list nil
   "A list of frequent topics utilized a user of the buffer-timer")
 
-(defvar buffer-timer-use-gutter t
+(defvar buffer-timer-use-gutter (if buffer-timer-running-xemacs t nil)
   "display buffer-timer status information in the default-gutter")
 
 
@@ -139,9 +143,10 @@ Swiched to after buffer-timer-idle-limit seconds.")
 (defvar buffer-timer-gutter-format-alist
   `((?l (or buffer-timer-locked "") ?s)
     (?L (let* ((mystr (copy-sequence " "))
-	       (myext (make-extent 0 1 mystr)))
-	  (set-extent-begin-glyph myext buffer-timer-locked-gl)
-	  mystr))
+	       (myext (make-overlay 0 1 mystr)))
+	  (if buffer-timer-running-xemacs
+	      (set-extent-begin-glyph myext buffer-timer-locked-gl))
+	    mystr))
     (?x buffer-timer-topic-depth-1 ?s)
     (?y buffer-timer-topic-depth-2 ?s)
     (?z buffer-timer-topic-depth-3 ?s)
@@ -322,10 +327,7 @@ static char *magick[] = {
 \"1.7.u 1 ` V b 3 c < ; g 7.\"
 };")
 
-(make-local-variable 'im-running-xemacs)
-(setq im-running-xemacs (string-match "XEmacs\\|Lucid" emacs-version))
-
-(if im-running-xemacs
+(if buffer-timer-running-xemacs
     (defvar buffer-timer-locked-gl (make-glyph (vector 'xpm :data buffer-timer-locked-xpm))))
 
 (defvar buffer-timer-recent-transfer-list '())
@@ -815,10 +817,10 @@ static char *magick[] = {
     (if (not ext)
 	(when pt
 	  (setq ext (extent-at pt (event-buffer event) nil ext 'at))))
-    (if (and (extentp ext) (extent-property ext 'unlock))
+    (if (and (overlayp ext) (overlay-get ext 'unlock))
 	(buffer-timer-unlock)
       
-      (if ext (setq to (extent-property ext 'towhat)))
+      (if ext (setq to (overlay-get ext 'towhat)))
       (if (symbolp to) (setq to (symbol-name to)))
       (if to
 	  (buffer-timer-transfer-time buffer-timer-idle-buffer to
@@ -842,8 +844,8 @@ static char *magick[] = {
     (if buffer-timer-locked
 	(progn
 	  (insert (concat "\tUnlock from " buffer-timer-locked "\n"))
-	  (setq newext (make-extent here (point)))
-	  (set-extent-property newext 'unlock t)
+	  (setq newext (make-overlay here (point)))
+	  (overlay-put newext 'unlock t)
 	  (buffer-timer-make-invis-button newext nil nil 
 					  buffer-timer-idle-button-map
 					  (concat "Unlock from" 
@@ -852,7 +854,7 @@ static char *magick[] = {
       ;; not locked
       ;; generic button
       (insert "\tApply current idle time to something generic\n")
-      (setq newext (make-extent here (point)))
+      (setq newext (make-overlay here (point)))
       (buffer-timer-make-invis-button newext nil nil 
 				      buffer-timer-idle-button-map
 				      "apply idle time to something else")
@@ -864,8 +866,8 @@ static char *magick[] = {
 	(setq lastbuf (buffer-name (pop bufferlist)))
 	(setq here (point))
 	(insert (concat "\tApply current idle time to \"" lastbuf "\"\n"))
-	(setq newext (make-extent here (point)))
-	(set-extent-property newext 'towhat lastbuf)
+	(setq newext (make-overlay here (point)))
+	(overlay-put newext 'towhat lastbuf)
 	(buffer-timer-make-invis-button newext nil nil 
 					buffer-timer-idle-button-map
 					(concat "\tApply current idle time to \"" 
@@ -883,8 +885,8 @@ static char *magick[] = {
 				     "\"\n")))
 	    (setq here (point))
 	    (insert thestring)
-	    (setq newext (make-extent here (point)))
-	    (set-extent-property newext 'towhat thesymbol)
+	    (setq newext (make-overlay here (point)))
+	    (overlay-put newext 'towhat thesymbol)
 	    (buffer-timer-make-invis-button newext nil nil 
 					    buffer-timer-idle-button-map
 					    thestring)
@@ -960,7 +962,7 @@ static char *magick[] = {
 (define-key buffer-timer-lock-map [(button1)] 'buffer-timer-unlock)
 (define-key buffer-timer-lock-map [(button2)] 'buffer-timer-unlock)
 (define-key buffer-timer-lock-map [(button3)] 'buffer-timer-unlock)
-;(setq buffer-timer-use-gutter t)
+;(setq buffer-timer-use-gutter nil)
 (defvar buffer-timer-old-extent nil)
 
 (defun buffer-timer-do-gutter-string ()
@@ -975,26 +977,26 @@ static char *magick[] = {
 	       (eval (gnus-parse-format buffer-timer-gutter-format
 					buffer-timer-gutter-format-alist))))
 	     (myext (if buffer-timer-locked
-			(make-extent 0 (length buffer-timer-locked)
+			(make-overlay 0 (length buffer-timer-locked)
 				     thestring)))
-	     (theext (make-extent 0 (length thestring) thestring)))
+	     (theext (make-overlay 0 (length thestring) thestring)))
 	(setq buffer-timer-mytime (+ (- now (or buffer-timer-switch-time 0))
 				     (or (buffer-timer-get-a-time newname) 0)))
-	(set-extent-face theext 'buffer-timer-normal-face)
+	(overlay-put theext 'face 'buffer-timer-normal-face)
 	(if myext
 	    (progn
 	      (set-extent-end-glyph myext buffer-timer-locked-gl)
-	      (set-extent-property myext 'mouse-face buffer-timer-mouse-face)
-	      (set-extent-face myext 'buffer-timer-locked-face)
-	      (set-extent-property myext 'keymap buffer-timer-lock-map)
+	      (overlay-put myext 'mouse-face buffer-timer-mouse-face)
+	      (overlay-put myext 'face 'buffer-timer-locked-face)
+	      (overlay-put myext 'keymap buffer-timer-lock-map)
 	      ))
 
 	; cleanup old stuff?  This isn't cleaned in garbage collection?
 	(remove-gutter-element default-gutter 'buffer-timer)
 	(if buffer-timer-old-extent
 	    (while buffer-timer-old-extent
-	      (if (extentp (car buffer-timer-old-extent))
-		  (delete-extent (car buffer-timer-old-extent)))
+	      (if (overlayp (car buffer-timer-old-extent))
+		  (delete-overlay (car buffer-timer-old-extent)))
 	      (setq buffer-timer-old-extent (cdr buffer-timer-old-extent))))
 	(setq buffer-timer-old-extent
 	      (list myext theext))
@@ -1082,19 +1084,19 @@ static char *magick[] = {
 
 (defun buffer-timer-make-invis-button (ext &optional subregionext startinvis keymap help)
   (if startinvis
-      (set-extent-property subregionext 'invisible t))
+      (overlay-put subregionext 'invisible t))
   (let ((mykeymap (or keymap buffer-timer-munge-map))
 	(helpstr 
 	 (or help "button2 toggles visibilty of sub-groups below this one.")))
-    (set-extent-property ext 'end-open t)
-    (set-extent-property ext 'start-open t)
-    (set-extent-property ext 'keymap mykeymap)
-    (set-extent-property ext 'mouse-face buffer-timer-mouse-face)
-    (set-extent-property ext 'intangible t)
-    (if (and subregionext (extentp subregionext))
-	(set-extent-property ext 'subregion subregionext))
+    (overlay-put ext 'end-open t)
+    (overlay-put ext 'start-open t)
+    (overlay-put ext 'keymap mykeymap)
+    (overlay-put ext 'mouse-face buffer-timer-mouse-face)
+    (overlay-put ext 'intangible t)
+    (if (and subregionext (overlayp subregionext))
+	(overlay-put ext 'subregion subregionext))
   ;; Help
-    (set-extent-property
+    (overlay-put
      ext 'help-echo
      helpstr))
 )
@@ -1103,18 +1105,18 @@ static char *magick[] = {
   "Toggle smiley at given point."
   (interactive "e")
   (let* ((ext (event-glyph-extent event))
-	 (subregion (if ext (extent-property ext 'subregion)))
+	 (subregion (if ext (overlay-get ext 'subregion)))
 	 (pt (event-closest-point event)))
     (if (not ext)
 	(when pt
 	  (while 
 	      (and
 	       (setq ext (extent-at pt (event-buffer event) nil ext 'at))
-	       (not (setq subregion (extent-property ext 'subregion)))))))
+	       (not (setq subregion (overlay-get ext 'subregion)))))))
     (if subregion
-	(if (not (extent-property subregion 'invisible))
-	    (set-extent-property subregion 'invisible t)
-	  (set-extent-property subregion 'invisible nil)))))
+	(if (not (overlay-get subregion 'invisible))
+	    (overlay-put subregion 'invisible t)
+	  (overlay-put subregion 'invisible nil)))))
 
 (defun buffer-timer-copy-sequence (sequence)
   (let* ((ret (copy-list sequence))
@@ -1200,10 +1202,10 @@ static char *magick[] = {
 				       (second startlist))
 				      (second startlist)))
 		      (setq startlist (cddr startlist)))
-;		    (setq ext1 (make-extent ourstart startpt))
-;		    (setq ext2 (make-extent startpt (1- (point))))
-		    (let ((newext (make-extent ourstart startpt))
-			  (subext (make-extent startpt (point))))
+;		    (setq ext1 (make-overlay ourstart startpt))
+;		    (setq ext2 (make-overlay startpt (1- (point))))
+		    (let ((newext (make-overlay ourstart startpt))
+			  (subext (make-overlay startpt (point))))
 		      (buffer-timer-make-invis-button newext subext
 						      (> 1 depth)))
 		    ))))
@@ -1213,8 +1215,8 @@ static char *magick[] = {
 	      (buffer-timer-display-munge-results (cddar sorted) 
 						  (concat "  " indent)
 						  (1- depth))
-	      (let ((newext (make-extent ourstart substart))
-		    (subext (make-extent substart (point))))
+	      (let ((newext (make-overlay ourstart substart))
+		    (subext (make-overlay substart (point))))
 		(buffer-timer-make-invis-button newext subext
 						(> 1 depth)))))
 ;	(if (and ext1 ext2)
@@ -1381,11 +1383,12 @@ static char *magick[] = {
 
 (defun buffer-timer-do-menus ()
   "Adds menu items to the Tools menu"
-  (add-menu-button '("Tools") '("Timer"
-				("Lock to"
-				 :filter buffer-timer-lockable-items)
-				[ "unlock" buffer-timer-unlock
-				  :active buffer-timer-locked ])))
+  (if buffer-timer-running-xemacs
+      (add-menu-button '("Tools") '("Timer"
+				    ("Lock to"
+				     :filter buffer-timer-lockable-items)
+				    [ "unlock" buffer-timer-unlock
+				      :active buffer-timer-locked ]))))
 
 ;
 ; note when we go idle for too long
@@ -1416,7 +1419,8 @@ static char *magick[] = {
   (if buffer-timer-use-gutter
       (set-gutter-element-visible-p default-gutter-visible-p 'buffer-timer t))
 
-  (set-specifier default-gutter-height 15)
+  (if buffer-timer-use-gutter
+      (set-specifier default-gutter-height 15))
   (buffer-timer-debug-msg "   buffer-timer-starting\n")
   (buffer-timer-do-menus))
 
@@ -1462,7 +1466,7 @@ static char *magick[] = {
 ;
 ;
 ;
-;(setq ext-test (make-extent nil nil))
+;(setq ext-test (make-overlay nil nil))
 ;(set-extent-begin-glyph ext-test gnus-xmas-modeline-glyph)
 ;(setq buffer-timer-status " ")
 ;
