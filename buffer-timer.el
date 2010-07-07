@@ -642,7 +642,7 @@ static char *magick[] = {
   (save-excursion
     (switch-to-buffer-other-window "*buffer-timer-results*")
     (erase-buffer)
-    (let ((list (copy-sequence buffer-timer-data))
+    (let ((list (copy-list buffer-timer-data))
 	  (addedtime 0)
 	  (sortby (or sortby buffer-timer-summarize-sort-by))
 	  (idletime 0))
@@ -714,7 +714,7 @@ static char *magick[] = {
   (save-excursion
     (switch-to-buffer-other-window "*buffer-timer-results*")
     (erase-buffer)
-    (let ((list (copy-sequence buffer-timer-data))
+    (let ((list (copy-list buffer-timer-data))
 	  (addedtime 0)
 	  (sortby (or sortby buffer-timer-summarize-sort-by))
 	  (idletime 0)
@@ -971,7 +971,7 @@ static char *magick[] = {
 	     (now (buffer-timer-current-time))
 ;	     (buffer-timer-time-string (buffer-timer-time-string mytime))
 	     (thestring
-	      (copy-sequence
+	      (copy-list
 	       (eval (gnus-parse-format buffer-timer-gutter-format
 					buffer-timer-gutter-format-alist))))
 	     (myext (if buffer-timer-locked
@@ -1117,7 +1117,7 @@ static char *magick[] = {
 	  (set-extent-property subregion 'invisible nil)))))
 
 (defun buffer-timer-copy-sequence (sequence)
-  (let* ((ret (copy-sequence sequence))
+  (let* ((ret (copy-list sequence))
 	 (iter ret))
     (while (and iter (listp iter))
       (if (listp (car iter))
@@ -1264,7 +1264,7 @@ static char *magick[] = {
   (buffer-timer-munge-mode))
 
 (defun buffer-timer-generate-munged (&optional list)
-  (let* ((list (or list (copy-sequence buffer-timer-data)))
+  (let* ((list (or list (copy-list buffer-timer-data)))
 	 (master (buffer-timer-copy-sequence buffer-timer-regexp-master-list)))
     (while list
       (buffer-timer-add-to-master master (caar list) (cdar list) "")
