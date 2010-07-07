@@ -26,7 +26,7 @@
   "the amount of time to wait for user input before switching to the 
 buffer-timer-idle-buffer buffer")
 
-(defvar buffer-timer-output-file    "/home/hardaker/.buffer-timer"
+(defvar buffer-timer-output-file    (concat (getenv "HOME") "/.buffer-timer")
   "the location to store buffer-timer data.  Will get formated using
 format-time-string, so date specifications (like file-%Y-%m-%d) will
 work.")
@@ -158,7 +158,8 @@ Swiched to after buffer-timer-idle-limit seconds.")
 (defvar buffer-timer-do-warnings    	  nil)
 (defvar buffer-timer-locked         	  nil)
 (defvar buffer-timer-debug          	  'file)
-(defvar buffer-timer-debug-file   	  "/home/hardaker/.buffer-timer-log")
+(defvar buffer-timer-debug-file   	 
+  (concat (getenv "HOME") "/.buffer-timer-log"))
 (defvar buffer-timer-debug-buffer   	  "*buffer-timer-log*")
 (defvar buffer-timer-debug-buf            nil)
 (defvar buffer-timer-last-file-name 	  nil)
@@ -1215,17 +1216,6 @@ static char *magick[] = {
 ;					    (> 1 depth)))
 	)
       (setq sorted (cdr sorted)))))
-
-;(progn
-;  (switch-to-buffer-other-window "*buffer-timer-results*")
-;  (make-local-variable 'buffer-timer-data)
-;  (load "/home/hardaker/.buffer-timer/timesheet-2000-12-04.el")
-;  (buffer-timer-munge buffer-timer-data t)
-;  (load "/home/hardaker/.buffer-timer/timesheet-2000-12-05.el")
-;  (buffer-timer-munge buffer-timer-data t)
-;  (load "/home/hardaker/.buffer-timer/timesheet-2000-12-06.el")
-;  (buffer-timer-munge buffer-timer-data t)
-;  (kill-local-variable 'buffer-timer-data))
 
 (defun buffer-timer-get-days-ago (num)
   "return (high low) representing emacs' stupid date method for NUM days ago"
