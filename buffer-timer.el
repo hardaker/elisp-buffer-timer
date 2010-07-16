@@ -94,6 +94,9 @@ Swiched to after buffer-timer-idle-limit seconds.")
 (defvar buffer-timer-munge-visible-depth 100
   "Maximum hierarchial depth to show as visible by default.")
 
+(defvar buffer-timer-limit-munge (if buffer-timer-running-xemacs t nil)
+  "Whether or not to colapse munge results")
+
 (defvar buffer-timer-mouse-face 'highlight
   "*Face used for mouse highlighting in the summary buffer.")
 
@@ -803,6 +806,7 @@ static char *magick[] = {
 (defun buffer-timer-do-early-idle ()
   (interactive)
 ;	(message (format "saving data %d" buffer-timer-do-early-idle-count))
+  (buffer-timer-idle-switch)
   (setq buffer-timer-do-early-idle-count 
 	(+ buffer-timer-do-early-idle-count 1))
   (if (> buffer-timer-do-early-idle-count 
@@ -849,7 +853,8 @@ static char *magick[] = {
 	  (buffer-timer-make-invis-button newext nil nil 
 					  buffer-timer-idle-button-map
 					  (concat "Unlock from" 
-						  buffer-timer-locked "\n")))
+						  buffer-timer-locked "\n")
+					  here (point)))
 
       ;; not locked
       ;; generic button
@@ -857,7 +862,8 @@ static char *magick[] = {
       (setq newext (make-overlay here (point)))
       (buffer-timer-make-invis-button newext nil nil 
 				      buffer-timer-idle-button-map
-				      "apply idle time to something else")
+				      "apply idle time to something else"
+				      here (point))
 
       ;; last visited buffers
       (insert "\nRecent buffers:\n\n")
@@ -871,7 +877,8 @@ static char *magick[] = {
 	(buffer-timer-make-invis-button newext nil nil 
 					buffer-timer-idle-button-map
 					(concat "\tApply current idle time to \"" 
-						lastbuf "\"\n")))
+						lastbuf "\"\n")
+					here (point)))
 
       ;; user specified frequent topics list
       (insert "\n\nYour frequent list:\n\n")
@@ -889,7 +896,7 @@ static char *magick[] = {
 	    (overlay-put newext 'towhat thesymbol)
 	    (buffer-timer-make-invis-button newext nil nil 
 					    buffer-timer-idle-button-map
-					    thestring)
+					    thestring here (point))
 	    (setq frequent (cdr frequent))))
 	(when frequent2
 	  (setq frequent frequent2)
@@ -959,9 +966,9 @@ static char *magick[] = {
 
 (defvar buffer-timer-lock-map (make-sparse-keymap "buffer-timer-lock-keys")
   "keymap for gutter")
-(define-key buffer-timer-lock-map [(button1)] 'buffer-timer-unlock)
-(define-key buffer-timer-lock-map [(button2)] 'buffer-timer-unlock)
-(define-key buffer-timer-lock-map [(button3)] 'buffer-timer-unlock)
+(if (not buffer-timer-running-xemacs)
+    (define-key buffer-timer-lock-map [mouse-1] 'buffer-timer-unlock))
+(define-key buffer-timer-lock-map [mouse-2] 'buffer-timer-unlock)
 ;(setq buffer-timer-use-gutter nil)
 (defvar buffer-timer-old-extent nil)
 
@@ -988,7 +995,7 @@ static char *magick[] = {
 	      (set-extent-end-glyph myext buffer-timer-locked-gl)
 	      (overlay-put myext 'mouse-face buffer-timer-mouse-face)
 	      (overlay-put myext 'face 'buffer-timer-locked-face)
-	      (overlay-put myext 'keymap buffer-timer-lock-map)
+	      (overlay-put myext 'local-map buffer-timer-lock-map)
 	      ))
 
 	; cleanup old stuff?  This isn't cleaned in garbage collection?
@@ -1066,8 +1073,10 @@ static char *magick[] = {
 (defvar buffer-timer-munge-map (make-sparse-keymap "buffer-timer-munge-keys")
   "Keymap to show/hide sub-groups of buffer-timer munge reports.")
 
-(define-key buffer-timer-munge-map [(button2)] 'buffer-timer-toggle-munge-state)
-(define-key buffer-timer-munge-map [(button3)] 'buffer-timer-toggle-munge-state)
+(if buffer-timer-running-xemacs
+    (define-key buffer-timer-munge-map [mouse-1]
+      'buffer-timer-toggle-munge-state))
+(define-key buffer-timer-munge-map [mouse-2] 'buffer-timer-toggle-munge-state)
 (define-key buffer-timer-munge-map [(return)] 'buffer-timer-toggle-munge-state)
 
 ; idle buffer map
@@ -1082,31 +1091,55 @@ static char *magick[] = {
 (define-key buffer-timer-idle-button-map [(return)] 
   'buffer-timer-do-idle-application)
 
-(defun buffer-timer-make-invis-button (ext &optional subregionext startinvis keymap help)
+(defun buffer-timer-make-invis-button (ext &optional subregionext startinvis keymap help pt1 pt2 sub1 sub2)
   (if startinvis
-      (overlay-put subregionext 'invisible t))
+      (if buffer-timer-running-xemacs
+	  (overlay-put subregionext 'invisible t)
+	(add-text-properties sub1 sub2 (list 'invisible t))))
   (let ((mykeymap (or keymap buffer-timer-munge-map))
 	(helpstr 
 	 (or help "button2 toggles visibilty of sub-groups below this one.")))
-    (overlay-put ext 'end-open t)
-    (overlay-put ext 'start-open t)
-    (overlay-put ext 'keymap mykeymap)
-    (overlay-put ext 'mouse-face buffer-timer-mouse-face)
-    (overlay-put ext 'intangible t)
-    (if (and subregionext (overlayp subregionext))
-	(overlay-put ext 'subregion subregionext))
-  ;; Help
-    (overlay-put
-     ext 'help-echo
-     helpstr))
+    (if buffer-timer-running-xemacs
+	(progn
+	  (overlay-put ext 'end-open t)
+	  (overlay-put ext 'start-open t)
+	  (overlay-put ext 'local-map mykeymap)
+	  (overlay-put ext 'mouse-face buffer-timer-mouse-face)
+	  (overlay-put ext 'intangible t)
+	  (if (and subregionext (overlayp subregionext))
+	      (overlay-put ext 'subregion subregionext))
+	  ;; Help
+	  (overlay-put ext 'help-echo helpstr))
+      ;; emacs uses text-properties instead
+      (add-text-properties  pt1 pt2
+			    (list 'end-open t
+				  'start-open t
+				  'local-map mykeymap
+				  'mouse-face buffer-timer-mouse-face
+				  'intangible t
+				  'help-echo helpstr
+				  'subregionstart  sub1
+				  'subregionend    sub2)
+      )))
 )
 
 (defun buffer-timer-toggle-munge-state (event)
-  "Toggle smiley at given point."
+  "Toggle hidden text at given point."
   (interactive "e")
-  (let* ((ext (event-glyph-extent event))
-	 (subregion (if ext (overlay-get ext 'subregion)))
-	 (pt (event-closest-point event)))
+  (let* ((ext (if buffer-timer-running-xemacs (event-glyph-extent event)))
+	 (pt (if buffer-timer-running-xemacs
+		 (event-closest-point event)
+	       (posn-point (event-end))))
+	 (props (if (not buffer-timer-running-xemacs)
+		    (text-properties-at pt)))
+	 (subregion (if (and ext buffer-timer-running-xemacs)
+			(overlay-get ext 'subregion)))
+	 (sub1      (if (and props (not buffer-timer-running-xemacs))
+			(listspot props 'subregionstart)))
+	 (sub2      (if (and props (not buffer-timer-running-xemacs))
+			(listspot props 'subregionsend)))
+	 
+	 )
     (if (not ext)
 	(when pt
 	  (while 
@@ -1204,10 +1237,14 @@ static char *magick[] = {
 		      (setq startlist (cddr startlist)))
 ;		    (setq ext1 (make-overlay ourstart startpt))
 ;		    (setq ext2 (make-overlay startpt (1- (point))))
-		    (let ((newext (make-overlay ourstart startpt))
-			  (subext (make-overlay startpt (point))))
-		      (buffer-timer-make-invis-button newext subext
-						      (> 1 depth)))
+		    (if buffer-timer-limit-munge
+			(let ((newext (make-overlay ourstart startpt))
+			      (subext (make-overlay startpt (point))))
+			  (buffer-timer-make-invis-button newext subext
+							  (> 1 depth)
+							  nil nil
+							  ourstart startpt
+							  startpt (point))))
 		    ))))
 	(if (and (listp (cddar sorted)) (listp (caddar sorted))
 		 (integerp (car (caddar sorted))))
@@ -1215,10 +1252,14 @@ static char *magick[] = {
 	      (buffer-timer-display-munge-results (cddar sorted) 
 						  (concat "  " indent)
 						  (1- depth))
-	      (let ((newext (make-overlay ourstart substart))
-		    (subext (make-overlay substart (point))))
-		(buffer-timer-make-invis-button newext subext
-						(> 1 depth)))))
+	      (if buffer-timer-limit-munge
+		  (let ((newext (make-overlay ourstart substart))
+			(subext (make-overlay substart (point))))
+		    (buffer-timer-make-invis-button newext subext
+						    (> 1 depth)
+						    nil nil
+						    ourstart (point)
+						    substart (point))))))
 ;	(if (and ext1 ext2)
 ;	    (buffer-timer-make-invis-button ext1 ext2
 ;					    (> 1 depth)))
@@ -1413,7 +1454,11 @@ static char *magick[] = {
   ;; do this before the gutten needs to display things
   (buffer-timer-do-idle-calculations)
 
-  (add-hook 'pre-idle-hook 'buffer-timer-idle-switch)
+  (if buffer-timer-running-xemacs
+      (add-hook 'pre-idle-hook 'buffer-timer-idle-switch)
+    ;(run-with-idle-timer buffer-timer-small-idle-time t 'buffer-timer-idle-switch)
+    )
+    
   (add-hook 'kill-emacs-hook 'buffer-timer-stop)
 
   (if buffer-timer-use-gutter
@@ -1433,7 +1478,8 @@ static char *magick[] = {
       (buffer-timer-unlock))
   (remove-hook 'pre-idle-hook 'buffer-timer-idle-switch)
   (buffer-timer-write-results)
-  (delete-menu-item '("Tools" "Timer"))
+  (if buffer-timer-running-xemacs
+      (delete-menu-item '("Tools" "Timer")))
   (buffer-timer-debug-msg "   buffer-timer-stopping\n")
   (message "buffer-timer exiting")
 )
