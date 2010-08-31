@@ -777,6 +777,7 @@ static char *magick[] = {
 (defvar buffer-timer-do-early-idle-count 0)
 ;(buffer-timer-do-idle-calculations)
 (defun buffer-timer-do-idle-calculations ()
+  "Updates the gutter display variables (buffer-timer-search-*) and saves data"
   (interactive)
   (progn
     (setq buffer-timer-do-early-idle-count 0)
@@ -804,6 +805,8 @@ static char *magick[] = {
 	  (buffer-timer-write-results)))))
 
 (defun buffer-timer-do-early-idle ()
+  "saves the buffers every 'buffer-timer-do-early-idle-count
+  times this function is called."
   (interactive)
 ;	(message (format "saving data %d" buffer-timer-do-early-idle-count))
   (buffer-timer-idle-switch)
@@ -972,44 +975,50 @@ static char *magick[] = {
 ;(setq buffer-timer-use-gutter nil)
 (defvar buffer-timer-old-extent nil)
 
-(defun buffer-timer-do-gutter-string ()
-  (if buffer-timer-use-gutter
-      (let* ((newname (if buffer-timer-locked
-			  buffer-timer-locked
-			  (buffer-timer-get-current-buffer-string)))
-	     (now (buffer-timer-current-time))
-;	     (buffer-timer-time-string (buffer-timer-time-string mytime))
-	     (thestring
-	      (copy-list
-	       (eval (gnus-parse-format buffer-timer-gutter-format
-					buffer-timer-gutter-format-alist))))
-	     (myext (if buffer-timer-locked
-			(make-overlay 0 (length buffer-timer-locked)
-				     thestring)))
-	     (theext (make-overlay 0 (length thestring) thestring)))
-	(setq buffer-timer-mytime (+ (- now (or buffer-timer-switch-time 0))
-				     (or (buffer-timer-get-a-time newname) 0)))
-	(overlay-put theext 'face 'buffer-timer-normal-face)
-	(if myext
-	    (progn
-	      (set-extent-end-glyph myext buffer-timer-locked-gl)
-	      (overlay-put myext 'mouse-face buffer-timer-mouse-face)
-	      (overlay-put myext 'face 'buffer-timer-locked-face)
-	      (overlay-put myext 'local-map buffer-timer-lock-map)
-	      ))
+(if buffer-timer-running-xemacs
+    ;; set the gutter for xemacs
+    (defun buffer-timer-do-gutter-string ()
+      (if buffer-timer-use-gutter
+	  (let* ((newname (if buffer-timer-locked
+			      buffer-timer-locked
+			    (buffer-timer-get-current-buffer-string)))
+		 (now (buffer-timer-current-time))
+					;	     (buffer-timer-time-string (buffer-timer-time-string mytime))
+		 (thestring
+		  (copy-list
+		   (eval (gnus-parse-format buffer-timer-gutter-format
+					    buffer-timer-gutter-format-alist))))
+		 (myext (if buffer-timer-locked
+			    (make-overlay 0 (length buffer-timer-locked)
+					  thestring)))
+		 (theext (make-overlay 0 (length thestring) thestring)))
+	    (setq buffer-timer-mytime (+ (- now (or buffer-timer-switch-time 0))
+					 (or (buffer-timer-get-a-time newname) 0)))
+	    (overlay-put theext 'face 'buffer-timer-normal-face)
+	    (if myext
+		(progn
+		  (set-extent-end-glyph myext buffer-timer-locked-gl)
+		  (overlay-put myext 'mouse-face buffer-timer-mouse-face)
+		  (overlay-put myext 'face 'buffer-timer-locked-face)
+		  (overlay-put myext 'local-map buffer-timer-lock-map)
+		  ))
 
-	; cleanup old stuff?  This isn't cleaned in garbage collection?
-	(remove-gutter-element default-gutter 'buffer-timer)
-	(if buffer-timer-old-extent
-	    (while buffer-timer-old-extent
-	      (if (overlayp (car buffer-timer-old-extent))
-		  (delete-overlay (car buffer-timer-old-extent)))
-	      (setq buffer-timer-old-extent (cdr buffer-timer-old-extent))))
-	(setq buffer-timer-old-extent
-	      (list myext theext))
-	(set-gutter-element default-gutter 'buffer-timer 
-			    thestring)
-	)))
+					; cleanup old stuff?  This isn't cleaned in garbage collection?
+	    (remove-gutter-element default-gutter 'buffer-timer)
+	    (if buffer-timer-old-extent
+		(while buffer-timer-old-extent
+		  (if (overlayp (car buffer-timer-old-extent))
+		      (delete-overlay (car buffer-timer-old-extent)))
+		  (setq buffer-timer-old-extent (cdr buffer-timer-old-extent))))
+	    (setq buffer-timer-old-extent
+		  (list myext theext))
+	    (set-gutter-element default-gutter 'buffer-timer 
+				thestring)
+	    )))
+  ;; do nothing on emacs
+  (defun buffer-timer-do-gutter-string ())
+  )
+
   
 ;
 ; easy to use functions
