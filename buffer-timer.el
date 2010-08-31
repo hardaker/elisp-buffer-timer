@@ -1036,7 +1036,7 @@ static char *magick[] = {
 	 (not buffer-timer-locked)
 	 (not (eq newname buffer-timer-last-file-name)))
 	(progn
-	  (message (format "remembering: %s -> %s" buffer-timer-last-file-name newname))
+	  ;;(message (format "remembering: %s -> %s" buffer-timer-last-file-name newname))
 	  (buffer-timer-remember buffer-timer-last-file-name)
 	  (setq buffer-timer-last-file-name newname)))
     (buffer-timer-do-gutter-string)))
