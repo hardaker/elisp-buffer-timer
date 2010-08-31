@@ -55,7 +55,7 @@ Swiched to after buffer-timer-idle-limit seconds.")
 (defvar buffer-timer-save-when-idle t
   "Whether we should save buffer-timer data every so often automatically.")
 
-(defvar buffer-timer-small-idle-time 5
+(defvar buffer-timer-small-idle-time 1
   "minimum idle time to wait before saving data")
 
 (defvar buffer-timer-save-every-x-idletimes 5
@@ -542,6 +542,7 @@ static char *magick[] = {
 ; write out our data to a save file
 ;
 (defun buffer-timer-write-results ()
+  "Save the .el and .txt results files"
   (interactive)
   (buffer-timer-write-el-results)
   (buffer-timer-write-text-results)
@@ -563,6 +564,7 @@ static char *magick[] = {
     newname))
 
 (defun buffer-timer-write-text-results ()
+  "Saves the ascii log files"
   (save-excursion
     (let ((buf (find-file-noselect (buffer-timer-create-file-name)))
 	  (list buffer-timer-data))
@@ -574,6 +576,7 @@ static char *magick[] = {
     (save-buffer)))
 
 (defun buffer-timer-write-el-results ()
+  "Saves the .el reloadable log files"
   (interactive)
   (save-excursion
     (let ((buf 
@@ -592,12 +595,14 @@ static char *magick[] = {
 ; summarize timed data into a seperate buffer
 ;
 (defun buffer-timer-break-time (intime)
+  "takes a seconds time and breaks it into a list of seconds/minutes/hours"
   (let* ((hours (/ intime 3600))
 	 (minutes (/ (- intime (* hours 3600)) 60))
 	 (seconds (mod intime 60)))
     (list seconds minutes hours)))
 
 (defun buffer-timer-time-string (intime)
+  "takes a seconds time and returns a formated h/m/s string"
   (let* ((tlist   (buffer-timer-break-time intime))
 	 (seconds (first tlist))
 	 (minutes (second tlist))
@@ -805,8 +810,8 @@ static char *magick[] = {
 	  (buffer-timer-write-results)))))
 
 (defun buffer-timer-do-early-idle ()
-  "saves the buffers every 'buffer-timer-do-early-idle-count
-  times this function is called."
+  "saves the buffers and updates the gutter
+   every 'buffer-timer-do-early-idle-count times this function is called."
   (interactive)
 ;	(message (format "saving data %d" buffer-timer-do-early-idle-count))
   (buffer-timer-idle-switch)
@@ -915,6 +920,7 @@ static char *magick[] = {
   "switch to the idle buffer"
   (interactive)
   ; subtract off a certain number of minutes from the current timer
+  (buffer-timer-idle-switch)
   (if buffer-timer-locked
       (message (concat "not going idle: currently locked to \"" 
 		       buffer-timer-locked "\""))
@@ -1024,11 +1030,13 @@ static char *magick[] = {
 ; easy to use functions
 ;
 (defun buffer-timer-idle-switch (&rest args)
+  "when switching buffers this detects the switch after 1 second and..."
   (let ((newname (buffer-timer-get-current-buffer-string)))
     (if (and
 	 (not buffer-timer-locked)
 	 (not (eq newname buffer-timer-last-file-name)))
 	(progn
+	  (message (format "remembering: %s -> %s" buffer-timer-last-file-name newname))
 	  (buffer-timer-remember buffer-timer-last-file-name)
 	  (setq buffer-timer-last-file-name newname)))
     (buffer-timer-do-gutter-string)))
