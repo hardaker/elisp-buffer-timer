@@ -958,6 +958,8 @@ static char *magick[] = {
   ;; change to the idle buffer, don't increment anything.
   (setq buffer-timer-switch-idle-time buffer-timer-switch-time)
   (switch-to-buffer buffer-timer-idle-buffer)
+;  (setq buffer-timer-last-file-name buffer-timer-idle-buffer)
+  (setq buffer-timer-last-file-name "*idle-2*")
   (if buffer-timer-do-idle-buttons
       (buffer-timer-idle-message)))
 
@@ -1449,14 +1451,6 @@ static char *magick[] = {
 				      :active buffer-timer-locked ]))))
 
 ;
-; note when we go idle for too long
-;
-(run-with-idle-timer buffer-timer-idle-limit t 
-		     'buffer-timer-go-idle buffer-timer-idle-limit)
-
-(run-with-idle-timer buffer-timer-small-idle-time t 'buffer-timer-do-early-idle)
-
-;
 (defun buffer-timer-start ()
   "turn on the buffer timer"
   (interactive)
@@ -1467,6 +1461,15 @@ static char *magick[] = {
   (let ((elfile (concat (buffer-timer-create-file-name) ".el")))
     (if (and buffer-timer-load-previous (file-exists-p elfile))
 	(load-file elfile)))
+
+  ;;
+  ;; note when we go idle for too long
+  ;;
+  (run-with-idle-timer buffer-timer-idle-limit t 
+		       'buffer-timer-go-idle buffer-timer-idle-limit)
+
+  (run-with-idle-timer buffer-timer-small-idle-time t
+		       'buffer-timer-do-early-idle)
 
   ;; do this before the gutten needs to display things
   (buffer-timer-do-idle-calculations)
@@ -1493,7 +1496,8 @@ static char *magick[] = {
   (interactive)
   (if buffer-timer-locked
       (buffer-timer-unlock))
-  (remove-hook 'pre-idle-hook 'buffer-timer-idle-switch)
+  (if buffer-timer-running-xemacs
+      (remove-hook 'pre-idle-hook 'buffer-timer-idle-switch))
   (buffer-timer-write-results)
   (if buffer-timer-running-xemacs
       (delete-menu-item '("Tools" "Timer")))
