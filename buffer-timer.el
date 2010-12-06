@@ -586,7 +586,9 @@ static char *magick[] = {
       (erase-buffer)
       (insert "(setq buffer-timer-data '(\n")
       (while list
-	(insert (format "  (\"%s\" . %2d)\n" (caar list) (cdar list)))
+	(insert (format "  (\"%s\" . %2d)\n"
+			(replace-regexp-in-string "\"" "\\\"" (caar list) nil t)
+			(cdar list)))
 	(setq list (cdr list))))
       (insert "))\n")
     (save-buffer)))
