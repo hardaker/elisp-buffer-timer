@@ -8,6 +8,8 @@ example.
 
 * Usage
 
+Define your categories in a hierarchical manner:
+
 #+BEGIN_SRC emacs-lisp
 (require 'buffer-timer)
 
@@ -32,6 +34,10 @@ example.
      ))
 
 #+END_SRC
+
+And then start editing like you normally would!  At the end of the
+day, type /C-c t m/ to get a summary of your time spent matched to the
+hierarchy.
 
 * History
 
