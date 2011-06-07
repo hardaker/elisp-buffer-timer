@@ -391,6 +391,8 @@ static char *magick[] = {
 		    (set-buffer buffer-timer-debug-buf)
 		    (make-local-variable 'save-buffers-skip)
 		    (setq save-buffers-skip t)
+		    (make-local-variable 'buffer-save-without-query)
+		    (setq buffer-save-without-query t)
 		    (setq buffer-timer-recursive-watch nil)))
 	      (if (bufferp buffer-timer-debug-buf)
 		  (progn
@@ -1063,7 +1065,9 @@ static char *magick[] = {
    (buffer-timer-do-gutter-string)
    (buffer-timer-debug-msg (format "locking to %s\n" lockto))
    (buffer-timer-add-to-recent-list lockto)
-   (setq buffer-timer-status buffer-timer-locked-gl))
+   (if buffer-timer-running-xemacs
+       (setq buffer-timer-status buffer-timer-locked-gl))
+   )
 
 (defun buffer-timer-unlock ()
   (interactive)
