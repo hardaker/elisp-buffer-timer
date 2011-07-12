@@ -94,7 +94,7 @@ Swiched to after buffer-timer-idle-limit seconds.")
 (defvar buffer-timer-munge-visible-depth 100
   "Maximum hierarchial depth to show as visible by default.")
 
-(defvar buffer-timer-limit-munge (if buffer-timer-running-xemacs t nil)
+(defvar buffer-timer-limit-munge t
   "Whether or not to colapse munge results")
 
 (defvar buffer-timer-mouse-face 'highlight
