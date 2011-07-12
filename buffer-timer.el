@@ -656,6 +656,8 @@ static char *magick[] = {
   (save-excursion
     (switch-to-buffer-other-window "*buffer-timer-results*")
     (erase-buffer)
+    (if flyspell-mode
+	(flyspell-mode-off))
     (let ((list (copy-list buffer-timer-data))
 	  (addedtime 0)
 	  (sortby (or sortby buffer-timer-summarize-sort-by))
@@ -975,6 +977,8 @@ static char *magick[] = {
   ;; change to the idle buffer, don't increment anything.
   (setq buffer-timer-switch-idle-time buffer-timer-switch-time)
   (switch-to-buffer buffer-timer-idle-buffer)
+  (if flyspell-mode
+      (flyspell-mode-off))
 ;  (setq buffer-timer-last-file-name buffer-timer-idle-buffer)
   (setq buffer-timer-last-file-name "*idle-2*")
   (if buffer-timer-do-idle-buttons
