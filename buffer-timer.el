@@ -1114,6 +1114,7 @@ static char *magick[] = {
 (if buffer-timer-running-xemacs
     (define-key buffer-timer-munge-map [mouse-1]
       'buffer-timer-toggle-munge-state))
+(define-key buffer-timer-munge-map [mouse-1] 'buffer-timer-toggle-munge-state)
 (define-key buffer-timer-munge-map [mouse-2] 'buffer-timer-toggle-munge-state)
 (define-key buffer-timer-munge-map [(return)] 'buffer-timer-toggle-munge-state)
 
@@ -1122,6 +1123,8 @@ static char *magick[] = {
   (make-sparse-keymap "buffer-timer-idle-button-keys")
   "Keymap to apply transforms.")
 
+(define-key buffer-timer-idle-button-map [(button1)] 
+  'buffer-timer-do-idle-application)
 (define-key buffer-timer-idle-button-map [(button2)] 
   'buffer-timer-do-idle-application)
 (define-key buffer-timer-idle-button-map [(button3)] 
@@ -1137,28 +1140,15 @@ static char *magick[] = {
   (let ((mykeymap (or keymap buffer-timer-munge-map))
 	(helpstr 
 	 (or help "button2 toggles visibilty of sub-groups below this one.")))
-    (if buffer-timer-running-xemacs
-	(progn
-	  (overlay-put ext 'end-open t)
-	  (overlay-put ext 'start-open t)
-	  (overlay-put ext 'local-map mykeymap)
-	  (overlay-put ext 'mouse-face buffer-timer-mouse-face)
-	  (overlay-put ext 'intangible t)
-	  (if (and subregionext (overlayp subregionext))
-	      (overlay-put ext 'subregion subregionext))
-	  ;; Help
-	  (overlay-put ext 'help-echo helpstr))
-      ;; emacs uses text-properties instead
-      (add-text-properties  pt1 pt2
-			    (list 'end-open t
-				  'start-open t
-				  'local-map mykeymap
-				  'mouse-face buffer-timer-mouse-face
-				  'intangible t
-				  'help-echo helpstr
-				  'subregionstart  sub1
-				  'subregionend    sub2)
-      )))
+    (overlay-put ext 'end-open t)
+    (overlay-put ext 'start-open t)
+    (overlay-put ext 'local-map mykeymap)
+    (overlay-put ext 'mouse-face buffer-timer-mouse-face)
+    (overlay-put ext 'intangible t)
+    (if (and subregionext (overlayp subregionext))
+	(overlay-put ext 'subregion subregionext))
+    ;; Help
+    (overlay-put ext 'help-echo helpstr))
 )
 
 (defun buffer-timer-toggle-munge-state (event)
@@ -1167,23 +1157,21 @@ static char *magick[] = {
   (let* ((ext (if buffer-timer-running-xemacs (event-glyph-extent event)))
 	 (pt (if buffer-timer-running-xemacs
 		 (event-closest-point event)
-	       (posn-point (event-end))))
+	       (posn-point (event-end event))))
 	 (props (if (not buffer-timer-running-xemacs)
 		    (text-properties-at pt)))
 	 (subregion (if (and ext buffer-timer-running-xemacs)
 			(overlay-get ext 'subregion)))
-	 (sub1      (if (and props (not buffer-timer-running-xemacs))
-			(listspot props 'subregionstart)))
-	 (sub2      (if (and props (not buffer-timer-running-xemacs))
-			(listspot props 'subregionsend)))
-	 
+	 (overlays (if pt (overlays-at pt)))
 	 )
     (if (not ext)
-	(when pt
+	(when overlays
 	  (while 
 	      (and
-	       (setq ext (extent-at pt (event-buffer event) nil ext 'at))
-	       (not (setq subregion (overlay-get ext 'subregion)))))))
+	       (setq ext (car overlays))
+	       (not (setq subregion (overlay-get ext 'subregion)))
+	       (setq overlays (cdr overlays))
+	       ))))
     (if subregion
 	(if (not (overlay-get subregion 'invisible))
 	    (overlay-put subregion 'invisible t)
