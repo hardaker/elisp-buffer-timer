@@ -831,7 +831,11 @@ static char *magick[] = {
      buffer-timer-idle-buffer label
      (+ 300 (- (buffer-timer-current-time) 
 	       buffer-timer-switch-idle-time)) 
-     t)))    
+     t)))
+
+(defun buffer-timer-do-idle-generic (button)
+  (message "here")
+  (call-interactively 'buffer-timer-transfer-time))
 
 (defun buffer-timer-do-idle-application (event)
   (interactive "e")
@@ -878,12 +882,13 @@ static char *magick[] = {
 
       ;; not locked
       ;; generic button
-      (insert "\tApply current idle time to something generic\n")
-      (setq newext (make-overlay here (point)))
-      (buffer-timer-make-invis-button newext nil nil 
-				      buffer-timer-idle-button-map
-				      "apply idle time to something else"
-				      here (point))
+      (insert "\t")
+      (insert-text-button "Apply current idle time to something generic"
+			  'action 'buffer-timer-do-idle-generic
+			  'help-echo
+			  "apply the idle time to something you specify"
+			  'follow-link t)
+      (insert "\n")
 
       ;; last visited buffers
       (insert "\nRecent buffers:\n\n")
