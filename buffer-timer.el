@@ -1134,9 +1134,7 @@ static char *magick[] = {
 
 (defun buffer-timer-make-invis-button (ext &optional subregionext startinvis keymap help pt1 pt2 sub1 sub2)
   (if startinvis
-      (if buffer-timer-running-xemacs
-	  (overlay-put subregionext 'invisible t)
-	(add-text-properties sub1 sub2 (list 'invisible t))))
+      (overlay-put subregionext 'invisible t))
   (let ((mykeymap (or keymap buffer-timer-munge-map))
 	(helpstr 
 	 (or help "button2 toggles visibilty of sub-groups below this one.")))
