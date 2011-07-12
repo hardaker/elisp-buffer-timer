@@ -17,7 +17,6 @@
 ;; from the Free Software Foundation, Inc., 675 Mass Ave, Cambridge, MA
 ;; 02139, USA.
 ;;
-;; $Revision: 1.16 $
 
 (require 'gnus-spec)
 ;
