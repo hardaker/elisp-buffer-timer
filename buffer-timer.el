@@ -825,6 +825,14 @@ static char *magick[] = {
 	 buffer-timer-save-every-x-idletimes)
       (buffer-timer-do-idle-calculations)))
 
+(defun buffer-timer-do-idle-button (button)
+  (let ((label (button-label button)))
+    (buffer-timer-transfer-time
+     buffer-timer-idle-buffer label
+     (+ 300 (- (buffer-timer-current-time) 
+	       buffer-timer-switch-idle-time)) 
+     t)))    
+
 (defun buffer-timer-do-idle-application (event)
   (interactive "e")
   (let* ((ext (event-glyph-extent event))
@@ -882,33 +890,33 @@ static char *magick[] = {
       (while (and (< count buffer-timer-recent-buffer-max) bufferlist)
 	(setq count (1+ count))
 	(setq lastbuf (buffer-name (pop bufferlist)))
-	(setq here (point))
-	(insert (concat "\tApply current idle time to \"" lastbuf "\"\n"))
-	(setq newext (make-overlay here (point)))
-	(overlay-put newext 'towhat lastbuf)
-	(buffer-timer-make-invis-button newext nil nil 
-					buffer-timer-idle-button-map
-					(concat "\tApply current idle time to \"" 
-						lastbuf "\"\n")
-					here (point)))
+
+ 	(insert "\tApply current idle time to \"")
+ 	(insert-text-button lastbuf 
+ 			    'action 'buffer-timer-do-idle-button
+ 			    'help-echo (concat "Apply the idle time to" lastbuf)
+ 			    'follow-link t)
+ 	(insert "\"\n"))
 
       ;; user specified frequent topics list
       (insert "\n\nYour frequent list:\n\n")
       (while frequent
 	(while frequent
 	  (let* ((thesymbol (car frequent))
-		 (thestring (concat "\tApply current idle time to \"" 
-				     (if (symbolp (car frequent))
+		 (label (if (symbolp (car frequent))
 					 (symbol-name (car frequent) )
-				       (car frequent))
+				       (car frequent)))
+		 (thestring (concat "\tApply current idle time to \"" 
+				    label
 				     "\"\n")))
-	    (setq here (point))
-	    (insert thestring)
-	    (setq newext (make-overlay here (point)))
-	    (overlay-put newext 'towhat thesymbol)
-	    (buffer-timer-make-invis-button newext nil nil 
-					    buffer-timer-idle-button-map
-					    thestring here (point))
+
+	    (insert "\tApply current idle time to \"")
+	    (insert-text-button label
+				'action 'buffer-timer-do-idle-button
+				'help-echo
+				(concat "Apply the idle time to" label)
+				'follow-link t)
+	    (insert "\"\n")
 	    (setq frequent (cdr frequent))))
 	(when frequent2
 	  (setq frequent frequent2)
