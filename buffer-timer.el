@@ -1,4 +1,4 @@
-;; buffer-timer.el: Track your time based on the buffers you edit.
+;;; buffer-timer.el --- Track your time based on the buffers you edit.
 ;;
 ;; Copyright (C) 2002-2004  Wes Hardaker <elisp@hardakers.net>
 ;;
