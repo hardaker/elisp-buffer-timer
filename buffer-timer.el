@@ -654,7 +654,8 @@ static char *magick[] = {
 (defun buffer-timer-summarize (&optional sortby)
   (interactive)
   (save-excursion
-    (switch-to-buffer-other-window "*buffer-timer-results*")
+    (if (not (equal (buffer-name) "*buffer-timer-results*"))
+	(switch-to-buffer-other-window "*buffer-timer-results*"))
     (erase-buffer)
     (if flyspell-mode
 	(flyspell-mode-off))
@@ -728,7 +729,8 @@ static char *magick[] = {
 (defun buffer-timer-report (&optional sortby)
   (interactive)
   (save-excursion
-    (switch-to-buffer-other-window "*buffer-timer-results*")
+    (if (not (equal (buffer-name) "*buffer-timer-results*"))
+	(switch-to-buffer-other-window "*buffer-timer-results*"))
     (erase-buffer)
     (let ((list (copy-list buffer-timer-data))
 	  (addedtime 0)
@@ -1311,7 +1313,8 @@ static char *magick[] = {
 (defun buffer-timer-munge-date-range (daychgone daychgtwo)
   "display info from TODAY-DAYCHGONE to TODAY-DAYCHGTWO"
   (interactive "nNumber of days ago marking start of range to view: \nnNumber of days ago marking end of range to view: ")
-  (switch-to-buffer-other-window "*buffer-timer-results*")
+  (if (not (equal (buffer-name) "*buffer-timer-results*"))
+      (switch-to-buffer-other-window "*buffer-timer-results*"))
   (erase-buffer)
   (kill-local-variable 'buffer-timer-data)
   (make-local-variable 'buffer-timer-data)
@@ -1419,8 +1422,9 @@ static char *magick[] = {
 
 (defun buffer-timer-munge (&optional list nodestroy noswitch)
   (interactive)
-  (if (not noswitch)
-      (switch-to-buffer-other-window "*buffer-timer-results*"))
+  (if (and (not noswitch)
+	   (not (equal (buffer-name) "*buffer-timer-results*")))
+	(switch-to-buffer-other-window "*buffer-timer-results*"))
   (kill-local-variable 'buffer-timer-data)
   (if (not nodestroy)
       (erase-buffer))
