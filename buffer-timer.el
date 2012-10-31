@@ -139,6 +139,9 @@ Swiched to after buffer-timer-idle-limit seconds.")
 (defvar buffer-timer-recent-buffer-max 5
   "Maximum number of recent buffers to make a button for in the idle window")
 
+(defvar buffer-timer-results-buffer "*buffer-timer-results*"
+  "The buffer name to use when generating reports and summaries")
+
 ;
 ; internal variables
 ;
@@ -654,8 +657,8 @@ static char *magick[] = {
 (defun buffer-timer-summarize (&optional sortby)
   (interactive)
   (save-excursion
-    (if (not (equal (buffer-name) "*buffer-timer-results*"))
-	(switch-to-buffer-other-window "*buffer-timer-results*"))
+    (if (not (equal (buffer-name) buffer-timer-results-buffer))
+	(switch-to-buffer-other-window buffer-timer-results-buffer))
     (erase-buffer)
     (if flyspell-mode
 	(flyspell-mode-off))
@@ -729,8 +732,8 @@ static char *magick[] = {
 (defun buffer-timer-report (&optional sortby)
   (interactive)
   (save-excursion
-    (if (not (equal (buffer-name) "*buffer-timer-results*"))
-	(switch-to-buffer-other-window "*buffer-timer-results*"))
+    (if (not (equal (buffer-name) buffer-timer-results-buffer))
+	(switch-to-buffer-other-window buffer-timer-results-buffer))
     (erase-buffer)
     (let ((list (copy-list buffer-timer-data))
 	  (addedtime 0)
@@ -1313,8 +1316,8 @@ static char *magick[] = {
 (defun buffer-timer-munge-date-range (daychgone daychgtwo)
   "display info from TODAY-DAYCHGONE to TODAY-DAYCHGTWO"
   (interactive "nNumber of days ago marking start of range to view: \nnNumber of days ago marking end of range to view: ")
-  (if (not (equal (buffer-name) "*buffer-timer-results*"))
-      (switch-to-buffer-other-window "*buffer-timer-results*"))
+  (if (not (equal (buffer-name) buffer-timer-results-buffer))
+      (switch-to-buffer-other-window buffer-timer-results-buffer))
   (erase-buffer)
   (kill-local-variable 'buffer-timer-data)
   (make-local-variable 'buffer-timer-data)
@@ -1423,8 +1426,8 @@ static char *magick[] = {
 (defun buffer-timer-munge (&optional list nodestroy noswitch)
   (interactive)
   (if (and (not noswitch)
-	   (not (equal (buffer-name) "*buffer-timer-results*")))
-	(switch-to-buffer-other-window "*buffer-timer-results*"))
+	   (not (equal (buffer-name) buffer-timer-results-buffer)))
+	(switch-to-buffer-other-window buffer-timer-results-buffer))
   (kill-local-variable 'buffer-timer-data)
   (if (not nodestroy)
       (erase-buffer))
