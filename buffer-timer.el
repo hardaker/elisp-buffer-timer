@@ -936,10 +936,22 @@ static char *magick[] = {
 	  (insert "\n\nRecent transfers:\n\n")
 	  )
 	)
+
+      ;; just reset
+      (insert "\n\nOther Actions:\n\n\t")
+      (insert-text-button "Return from being idle"
+			  'action 'buffer-timer-go-idle-button
+			  'help-echo "Restore the window states"
+			  'follow-link t)
       (insert "\n\n(buffer-timer-idle-message)\n")
     ))
 )
 ;
+
+(defun buffer-timer-go-idle-button (button)
+  "use a button to switch out of idle mode"
+  (buffer-timer-go-idle))
+
 (defun buffer-timer-go-idle (&optional subtracttime)
   "switch to the idle buffer"
   (interactive)
