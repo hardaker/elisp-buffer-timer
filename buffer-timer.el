@@ -991,14 +991,22 @@ static char *magick[] = {
   (if buffer-timer-do-idle-buttons
       (buffer-timer-idle-message)))
 
+(defvar buffer-timer-last-frame-configurations
+  "a list of configuration data for the last window statuses")
+
 (defun buffer-timer-switch-all-windows-to-idle ()
   "Switch every open window in each frame to the idle buffer"
+  (setq buffer-timer-last-frame-configurations (current-frame-configuration))
   (let ((frames (frame-list)))
     (dolist (frame frames)
       (let ((windows (window-list frame)))
 	(dolist (window windows)
 	  (set-window-buffer window buffer-timer-idle-buffer)
       )))))
+
+(defun buffer-timer-switch-all-windows-to-nolonger-idle ()
+  "restore frame states from the last switch to idle"
+  (set-frame-configuration buffer-timer-last-frame-configurations))
 
 (defun buffer-timer-toggle-idle (&optional subtracttime)
   "switch to or from the idle buffer"
