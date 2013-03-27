@@ -981,13 +981,24 @@ static char *magick[] = {
 	  (setq buffer-timer-switch-time (buffer-timer-current-time)))))
   ;; change to the idle buffer, don't increment anything.
   (setq buffer-timer-switch-idle-time buffer-timer-switch-time)
-  (switch-to-buffer buffer-timer-idle-buffer)
+
+  (buffer-timer-switch-all-windows-to-idle)
+
   (if flyspell-mode
       (flyspell-mode-off))
 ;  (setq buffer-timer-last-file-name buffer-timer-idle-buffer)
   (setq buffer-timer-last-file-name "*idle-2*")
   (if buffer-timer-do-idle-buttons
       (buffer-timer-idle-message)))
+
+(defun buffer-timer-switch-all-windows-to-idle ()
+  "Switch every open window in each frame to the idle buffer"
+  (let ((frames (frame-list)))
+    (dolist (frame frames)
+      (let ((windows (window-list frame)))
+	(dolist (window windows)
+	  (set-window-buffer window buffer-timer-idle-buffer)
+      )))))
 
 (defun buffer-timer-toggle-idle (&optional subtracttime)
   "switch to or from the idle buffer"
