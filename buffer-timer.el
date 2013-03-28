@@ -940,7 +940,7 @@ static char *magick[] = {
       ;; just reset
       (insert "\n\nOther Actions:\n\n\t")
       (insert-text-button "Return from being idle"
-			  'action 'buffer-timer-go-idle-button
+			  'action 'buffer-timer-toggle-idle-button
 			  'help-echo "Restore the window states"
 			  'follow-link t)
       (insert "\n\n(buffer-timer-idle-message)\n")
@@ -956,60 +956,63 @@ static char *magick[] = {
   "switch to the idle buffer"
   (interactive)
   ;; subtract off a certain number of minutes from the current timer
-  (buffer-timer-idle-switch)
-  (if buffer-timer-locked
-      (message (concat "not going idle: currently locked to \"" 
-		       buffer-timer-locked "\""))
-    (if (and subtracttime buffer-timer-switch-time)
-	;; we need to manually calculate the times for buffers dealing
-	;; with the fact that the last X number of seconds should be
-	;; marked as idle.
-	(progn 
-	  (cond
-	   ;; we've switched early.  Only record the idle time.
-	   ((> (+ buffer-timer-switch-time subtracttime)
-	       (buffer-timer-current-time))
-	    (bt-warn
-	     "buffer-timer: idle timer gave too few seconds")
+  (if (not (equal (buffer-name) buffer-timer-idle-buffer))
+      (progn
+	(buffer-timer-idle-switch)
+	(if buffer-timer-locked
+	    (message (concat "not going idle: currently locked to \"" 
+			     buffer-timer-locked "\""))
+	  (if (and subtracttime buffer-timer-switch-time)
+	      ;; we need to manually calculate the times for buffers dealing
+	      ;; with the fact that the last X number of seconds should be
+	      ;; marked as idle.
+	      (progn 
+		(cond
+		 ;; we've switched early.  Only record the idle time.
+		 ((> (+ buffer-timer-switch-time subtracttime)
+		     (buffer-timer-current-time))
+		  (bt-warn
+		   "buffer-timer: idle timer gave too few seconds")
 					;(format "buffer-timer: idle timer gave too few seconds: %d"
 					;	     (- (buffer-timer-current-time)
 					;	buffer-timer-switch-time)))
-	    (buffer-timer-remember buffer-timer-idle-buffer
-				   (- (buffer-timer-current-time)
-				      buffer-timer-switch-time)))
-	   ;; we've switched and need to remember an amount of time spent
-	   ;; in the current buffer.
-	   ((< (+ buffer-timer-switch-time subtracttime)
-	       (buffer-timer-current-time))
-	    (buffer-timer-remember (buffer-timer-get-current-buffer-string)
-				   (- (buffer-timer-current-time)
-				      buffer-timer-switch-time subtracttime))
-	    (buffer-timer-remember buffer-timer-idle-buffer subtracttime))
-	   ;; exactly equal.  Only the idle timer is incremented.
-	   (t
-	    (buffer-timer-remember buffer-timer-idle-buffer subtracttime)))
-	  ;; zero the switch time so we don't record anything about the
-	  ;; past X amount of time.
-	  (setq buffer-timer-switch-time (buffer-timer-current-time)))))
-  ;; change to the idle buffer, don't increment anything.
-  (setq buffer-timer-switch-idle-time buffer-timer-switch-time)
+		  (buffer-timer-remember buffer-timer-idle-buffer
+					 (- (buffer-timer-current-time)
+					    buffer-timer-switch-time)))
+		 ;; we've switched and need to remember an amount of time spent
+		 ;; in the current buffer.
+		 ((< (+ buffer-timer-switch-time subtracttime)
+		     (buffer-timer-current-time))
+		  (buffer-timer-remember (buffer-timer-get-current-buffer-string)
+					 (- (buffer-timer-current-time)
+					    buffer-timer-switch-time subtracttime))
+		  (buffer-timer-remember buffer-timer-idle-buffer subtracttime))
+		 ;; exactly equal.  Only the idle timer is incremented.
+		 (t
+		  (buffer-timer-remember buffer-timer-idle-buffer subtracttime)))
+		;; zero the switch time so we don't record anything about the
+		;; past X amount of time.
+		(setq buffer-timer-switch-time (buffer-timer-current-time)))))
+	;; change to the idle buffer, don't increment anything.
+	(setq buffer-timer-switch-idle-time buffer-timer-switch-time)
 
-  (buffer-timer-switch-all-windows-to-idle)
-  (switch-to-buffer buffer-timer-idle-buffer t)
+	(buffer-timer-switch-all-windows-to-idle)
+	(switch-to-buffer buffer-timer-idle-buffer t)
 
-  (if flyspell-mode
-      (flyspell-mode-off))
+	(if flyspell-mode
+	    (flyspell-mode-off))
 					;  (setq buffer-timer-last-file-name buffer-timer-idle-buffer)
-  (setq buffer-timer-last-file-name "*idle-2*")
-  (if buffer-timer-do-idle-buttons
-      (buffer-timer-idle-message)))
+	(setq buffer-timer-last-file-name "*idle-2*")
+	(if buffer-timer-do-idle-buttons
+	    (buffer-timer-idle-message)))))
 
 (defvar buffer-timer-last-frame-configurations
   "a list of configuration data for the last window statuses")
 
 (defun buffer-timer-switch-all-windows-to-idle ()
   "Switch every open window in each frame to the idle buffer"
-  (setq buffer-timer-last-frame-configurations (current-frame-configuration))
+  (if (not (equal (buffer-name) buffer-timer-idle-buffer))
+      (setq buffer-timer-last-frame-configurations (current-frame-configuration)))
   (let ((frames (frame-list)))
     (dolist (frame frames)
       (let ((windows (window-list frame)))
@@ -1020,6 +1023,11 @@ static char *magick[] = {
 (defun buffer-timer-switch-all-windows-to-nolonger-idle ()
   "restore frame states from the last switch to idle"
   (set-frame-configuration buffer-timer-last-frame-configurations))
+
+(defun buffer-timer-toggle-idle-button (button)
+  "switch to or from the idle buffer via button"
+  (interactive)
+  (buffer-timer-toggle-idle))
 
 (defun buffer-timer-toggle-idle (&optional subtracttime)
   "switch to or from the idle buffer"
