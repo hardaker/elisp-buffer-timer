@@ -1020,7 +1020,7 @@ static char *magick[] = {
 	  (set-window-buffer window buffer-timer-idle-buffer)
       )))))
 
-(defun buffer-timer-switch-all-windows-to-nolonger-idle (notusedbutton)
+(defun buffer-timer-switch-all-windows-to-nolonger-idle (&optional notusedbutton)
   "restore frame states from the last switch to idle"
   (set-frame-configuration buffer-timer-last-frame-configurations))
 
