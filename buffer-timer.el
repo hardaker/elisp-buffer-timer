@@ -1507,6 +1507,8 @@ static char *magick[] = {
 				      :active buffer-timer-locked ]))))
 
 ;
+(defvar buffer-timer-idle-timer-list nil)
+
 (defun buffer-timer-start ()
   "turn on the buffer timer"
   (interactive)
@@ -1521,11 +1523,13 @@ static char *magick[] = {
   ;;
   ;; note when we go idle for too long
   ;;
-  (run-with-idle-timer buffer-timer-idle-limit t 
-		       'buffer-timer-go-idle buffer-timer-idle-limit)
+  (add-to-list 'buffer-timer-idle-timer-list
+	       (run-with-idle-timer buffer-timer-idle-limit t 
+				    'buffer-timer-go-idle buffer-timer-idle-limit))
 
-  (run-with-idle-timer buffer-timer-small-idle-time t
-		       'buffer-timer-do-early-idle)
+  (add-to-list 'buffer-timer-idle-timer-list
+	       (run-with-idle-timer buffer-timer-small-idle-time t
+				    'buffer-timer-do-early-idle))
 
   ;; do this before the gutten needs to display things
   (buffer-timer-do-idle-calculations)
@@ -1558,6 +1562,9 @@ static char *magick[] = {
   (if buffer-timer-running-xemacs
       (delete-menu-item '("Tools" "Timer")))
   (buffer-timer-debug-msg "   buffer-timer-stopping\n")
+  (dolist (timer-object buffer-timer-idle-timer-list)
+    (cancel-timer timer-object))
+  (setq buffer-timer-idle-timer-list nil)
   (message "buffer-timer exiting")
 )
 
