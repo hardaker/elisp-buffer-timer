@@ -864,6 +864,15 @@ static char *magick[] = {
 				      t)
 	(call-interactively 'buffer-timer-transfer-time)))))
 
+(defun buffer-timer-insert-transfer-buttons (bufname)
+  (insert "\tApply current idle time to \"")
+  (insert-text-button bufname
+		      'action 'buffer-timer-do-idle-button
+		      'help-echo (concat "Apply the idle time to" bufname)
+		      'follow-link t)
+ 	(insert "\"\n"))
+)
+
 (defun buffer-timer-idle-message ()
   (interactive)
   (erase-buffer)
@@ -903,12 +912,7 @@ static char *magick[] = {
 	(setq count (1+ count))
 	(setq lastbuf (buffer-name (pop bufferlist)))
 
- 	(insert "\tApply current idle time to \"")
- 	(insert-text-button lastbuf 
- 			    'action 'buffer-timer-do-idle-button
- 			    'help-echo (concat "Apply the idle time to" lastbuf)
- 			    'follow-link t)
- 	(insert "\"\n"))
+	(buffer-timer-insert-transfer-buttons lastbuf))
 
       ;; user specified frequent topics list
       (insert "\n\nYour frequent list:\n\n")
@@ -922,13 +926,7 @@ static char *magick[] = {
 				    label
 				     "\"\n")))
 
-	    (insert "\tApply current idle time to \"")
-	    (insert-text-button label
-				'action 'buffer-timer-do-idle-button
-				'help-echo
-				(concat "Apply the idle time to" label)
-				'follow-link t)
-	    (insert "\"\n")
+	    (buffer-timer-insert-transfer-buttons label)
 	    (setq frequent (cdr frequent))))
 	(when frequent2
 	  (setq frequent frequent2)
