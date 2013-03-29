@@ -940,7 +940,7 @@ static char *magick[] = {
       ;; just reset
       (insert "\n\nOther Actions:\n\n\t")
       (insert-text-button "Return from being idle"
-			  'action 'buffer-timer-toggle-idle-button
+			  'action 'buffer-timer-switch-all-windows-to-nolonger-idle
 			  'help-echo "Restore the window states"
 			  'follow-link t)
       (insert "\n\n(buffer-timer-idle-message)\n")
@@ -1020,7 +1020,7 @@ static char *magick[] = {
 	  (set-window-buffer window buffer-timer-idle-buffer)
       )))))
 
-(defun buffer-timer-switch-all-windows-to-nolonger-idle ()
+(defun buffer-timer-switch-all-windows-to-nolonger-idle (notusedbutton)
   "restore frame states from the last switch to idle"
   (set-frame-configuration buffer-timer-last-frame-configurations))
 
