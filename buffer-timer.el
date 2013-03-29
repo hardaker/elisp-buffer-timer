@@ -1547,7 +1547,12 @@ static char *magick[] = {
   (if buffer-timer-use-gutter
       (set-specifier default-gutter-height 15))
   (buffer-timer-debug-msg "   buffer-timer-starting\n")
-  (buffer-timer-do-menus))
+  (buffer-timer-do-menus)
+
+  ;; create the idle buffer
+  (save-excursion
+    (switch-to-buffer buffer-timer-idle-buffer))
+)
 
 
 ; clean up for exiting
