@@ -1012,7 +1012,11 @@ static char *magick[] = {
 (defun buffer-timer-switch-all-windows-to-idle ()
   "Switch every open window in each frame to the idle buffer"
   (if (not (equal (buffer-name) buffer-timer-idle-buffer))
-      (setq buffer-timer-last-frame-configurations (current-frame-configuration)))
+      (progn
+	;(message (concat "saving buffers for idle protection (was in " (buffer-name) ")"))
+	(setq buffer-timer-last-frame-configurations (current-frame-configuration)))
+    ;(message (concat "not saving buffers for idle protection (am in " (buffer-name) ")"))
+    )
   (let ((frames (frame-list)))
     (dolist (frame frames)
       (let ((windows (window-list frame)))
