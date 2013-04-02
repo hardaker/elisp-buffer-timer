@@ -840,6 +840,17 @@ static char *magick[] = {
 	       buffer-timer-switch-idle-time)) 
      t)))
 
+(defun buffer-timer-do-idle-button-and-switch (button)
+  (let ((label (button-label button)))
+    (buffer-timer-transfer-time
+     buffer-timer-idle-buffer label
+     (+ 300 (- (buffer-timer-current-time) 
+	       buffer-timer-switch-idle-time)) 
+     t))
+
+  (buffer-timer-switch-all-windows-to-nolonger-idle)
+)
+
 (defun buffer-timer-do-idle-generic (button)
   (message "here")
   (call-interactively 'buffer-timer-transfer-time))
@@ -864,19 +875,34 @@ static char *magick[] = {
 				      t)
 	(call-interactively 'buffer-timer-transfer-time)))))
 
+(defun buffer-timer-section-header (name)
+  (insert name)
+  (insert "\tTransfer                      Transfer and restore windows\n")
+  (insert "\t______________                ______________________________\n")
+)
+
+(defvar buffer-timer-button-length 30)
 (defun buffer-timer-insert-transfer-buttons (bufname)
-  (insert "\tApply current idle time to \"")
+;  (insert "\tApply current idle time to \"")
+  (insert "\t")
   (insert-text-button bufname
 		      'action 'buffer-timer-do-idle-button
 		      'help-echo (concat "Apply the idle time to" bufname)
 		      'follow-link t)
- 	(insert "\"\n"))
+  (let ((strlen (- buffer-timer-button-length (length bufname))))
+    (if (> strlen 0)
+	(insert (make-string strlen ? ))))
+  (insert-text-button bufname
+		      'action 'buffer-timer-do-idle-button-and-switch
+		      'help-echo (concat "transfer idle time to " bufname " and revert screens")
+		      'follow-link t)
+  (insert "\n")
 )
 
 (defun buffer-timer-idle-message ()
   (interactive)
   (erase-buffer)
-  (insert "Ok....  You've gone idle.  Do you want to:\n\n")
+  (insert "You've gone idle!  Do you want to:\n\n")
   (let ((here (point)) 
 	(frequent buffer-timer-frequent-topic-list)
 	(frequent2 buffer-timer-recent-transfer-list)
@@ -887,27 +913,22 @@ static char *magick[] = {
 
     (if buffer-timer-locked
 	(progn
-	  (insert (concat "\tUnlock from " buffer-timer-locked "\n"))
-	  (setq newext (make-overlay here (point)))
-	  (overlay-put newext 'unlock t)
-	  (buffer-timer-make-invis-button newext nil nil 
-					  buffer-timer-idle-button-map
-					  (concat "Unlock from" 
-						  buffer-timer-locked "\n")
-					  here (point)))
+	  (insert "\t")
+	  (insert-text-button (concat "Unlock from " buffer-timer-locked)
+			      'action 'buffer-timer-unlock
+			      'help-echo "Unlock from the current locked-topic"
+			      'follow-link t)
+	  (insert "\n\t")
+	  (insert-text-button "Return to previous buffer set"
+			      'action 'buffer-timer-switch-all-windows-to-nolonger-idle
+			      'help-echo "Restore the window states"
+			      'follow-link t)
+	  (insert "\n")
+	  )
 
       ;; not locked
-      ;; generic button
-      (insert "\t")
-      (insert-text-button "Apply current idle time to something generic"
-			  'action 'buffer-timer-do-idle-generic
-			  'help-echo
-			  "apply the idle time to something you specify"
-			  'follow-link t)
-      (insert "\n")
-
       ;; last visited buffers
-      (insert "\nRecent buffers:\n\n")
+      (buffer-timer-section-header "\nTransfer idle time to recent buffers:\n\n")
       (while (and (< count buffer-timer-recent-buffer-max) bufferlist)
 	(setq count (1+ count))
 	(setq lastbuf (buffer-name (pop bufferlist)))
@@ -915,7 +936,7 @@ static char *magick[] = {
 	(buffer-timer-insert-transfer-buttons lastbuf))
 
       ;; user specified frequent topics list
-      (insert "\n\nYour frequent list:\n\n")
+      (buffer-timer-section-header "\n\nTransfer idle time to your frequent list:\n\n")
       (while frequent
 	(while frequent
 	  (let* ((thesymbol (car frequent))
@@ -931,12 +952,20 @@ static char *magick[] = {
 	(when frequent2
 	  (setq frequent frequent2)
 	  (setq frequent2 nil)
-	  (insert "\n\nRecent transfers:\n\n")
+	  (buffer-timer-section-header "\n\nTransfer idle time to other recent transfers:\n\n")
 	  )
 	)
 
       ;; just reset
       (insert "\n\nOther Actions:\n\n\t")
+      (insert "\t")
+      (insert-text-button "Apply current idle time to something generic"
+			  'action 'buffer-timer-do-idle-generic
+			  'help-echo
+			  "apply the idle time to something you specify"
+			  'follow-link t)
+      (insert "\n\t")
+
       (insert-text-button "Return from being idle"
 			  'action 'buffer-timer-switch-all-windows-to-nolonger-idle
 			  'help-echo "Restore the window states"
