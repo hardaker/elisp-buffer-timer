@@ -958,7 +958,6 @@ static char *magick[] = {
 
       ;; just reset
       (insert "\n\nOther Actions:\n\n\t")
-      (insert "\t")
       (insert-text-button "Apply current idle time to something generic"
 			  'action 'buffer-timer-do-idle-generic
 			  'help-echo
