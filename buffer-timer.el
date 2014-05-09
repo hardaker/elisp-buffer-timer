@@ -1332,10 +1332,11 @@ static char *magick[] = {
 		       (stringp (caddar sorted)))
 		  (let ((startpt (point)) (startlist (cdddar sorted)))
 		    (while startlist
-		      (insert (format "  %s %-30s %10s     %d\n" 
-				      indent (car startlist)
+		      (insert (format "  %s %-10s %-30s     %d\n" 
+				      indent
 				      (buffer-timer-time-string 
 				       (second startlist))
+				      (car startlist)
 				      (second startlist)))
 		      (setq startlist (cddr startlist)))
 ;		    (setq ext1 (make-overlay ourstart startpt))
