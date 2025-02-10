@@ -19,8 +19,10 @@
 ;;
 
 (require 'gnus-spec)
+(require 'cl)
+
 ;
-; user setable variables
+; User setable variables
 ;
 (defvar buffer-timer-running-xemacs
   (string-match "XEmacs\\|Lucid" emacs-version)
